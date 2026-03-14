@@ -1,0 +1,18 @@
+# Credentials — never commit these
+.env
+
+# Azure CU raw response — large file, cached locally only
+output/raw_result.json
+
+# Generated output files
+output/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
