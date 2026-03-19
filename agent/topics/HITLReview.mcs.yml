@@ -1,12 +1,14 @@
 # Name: HITL Review
 # Human-in-the-loop review wizard for financial statement extractions.
 # Triggered by redirect from FileUploadHandler after extraction completes.
-# Shows adaptive cards for each statement with confidence levels, then submits for Excel generation.
+# Calls backend API to build dynamic Adaptive Cards for each statement,
+# captures analyst edits, and applies corrections before Excel generation.
 kind: AdaptiveDialog
 modelDescription: >-
   This topic provides a human-in-the-loop review workflow for extracted financial statements.
-  It displays confidence levels for each statement and lets the analyst navigate through them
-  before generating the Excel report. Only triggered by redirect from the File Upload Handler.
+  It calls the backend API to dynamically build Adaptive Cards with editable fields for each
+  statement, captures analyst corrections, and applies them before generating the Excel report.
+  Only triggered by redirect from the File Upload Handler.
 
 beginDialog:
   kind: OnSystemRedirect
@@ -14,43 +16,53 @@ beginDialog:
 
   actions:
     # ──────────────────────────────────────────────
-    # Parse confidence JSON into per-statement variables
-    # Expected format: {"balance_sheet":{"level":"high","flagged_rows":[]},"income_statement":{"level":"medium","flagged_rows":[2,5]},"cash_flow":{"level":"low","flagged_rows":[1,3,7]}}
+    # Initialize topic variables
     # ──────────────────────────────────────────────
+    - kind: SetVariable
+      id: setVar_initBsCorr
+      variable: init:Topic.bs_corrections
+      value: ="{}"
+
+    - kind: SetVariable
+      id: setVar_initIsCorr
+      variable: init:Topic.is_corrections
+      value: ="{}"
+
+    - kind: SetVariable
+      id: setVar_initCfCorr
+      variable: init:Topic.cf_corrections
+      value: ="{}"
+
     - kind: SetVariable
       id: setVar_parseConf
       variable: init:Topic.confidenceParsed
       value: =ParseJSON(Topic.confidence)
 
+    # ──────────────────────────────────────────────
+    # Determine which statements exist (not "not_found")
+    # ──────────────────────────────────────────────
     - kind: SetVariable
-      id: setVar_bsConf
-      variable: init:Topic.bs_confidence
-      value: =Text(Topic.confidenceParsed.balance_sheet.level)
+      id: setVar_bsExists
+      variable: init:Topic.bs_exists
+      value: =If(Text(Topic.confidenceParsed.balance_sheet.level) <> "not_found", true, false)
 
     - kind: SetVariable
-      id: setVar_bsFlags
-      variable: init:Topic.bs_flag_count
-      value: =Text(CountRows(Table(Topic.confidenceParsed.balance_sheet.flagged_rows)))
+      id: setVar_isExists
+      variable: init:Topic.is_exists
+      value: =If(Text(Topic.confidenceParsed.income_statement.level) <> "not_found", true, false)
 
     - kind: SetVariable
-      id: setVar_isConf
-      variable: init:Topic.is_confidence
-      value: =Text(Topic.confidenceParsed.income_statement.level)
+      id: setVar_cfExists
+      variable: init:Topic.cf_exists
+      value: =If(Text(Topic.confidenceParsed.cash_flow.level) <> "not_found", true, false)
 
+    # ──────────────────────────────────────────────
+    # Calculate total steps (only existing statements)
+    # ──────────────────────────────────────────────
     - kind: SetVariable
-      id: setVar_isFlags
-      variable: init:Topic.is_flag_count
-      value: =Text(CountRows(Table(Topic.confidenceParsed.income_statement.flagged_rows)))
-
-    - kind: SetVariable
-      id: setVar_cfConf
-      variable: init:Topic.cf_confidence
-      value: =Text(Topic.confidenceParsed.cash_flow.level)
-
-    - kind: SetVariable
-      id: setVar_cfFlags
-      variable: init:Topic.cf_flag_count
-      value: =Text(CountRows(Table(Topic.confidenceParsed.cash_flow.flagged_rows)))
+      id: setVar_totalSteps
+      variable: init:Topic.total_steps
+      value: =If(Topic.bs_exists, 1, 0) + If(Topic.is_exists, 1, 0) + If(Topic.cf_exists, 1, 0)
 
     # ──────────────────────────────────────────────
     # Handle step override (for back-navigation via ReplaceDialog)
@@ -65,146 +77,94 @@ beginDialog:
               id: setVar_ovrStep
               variable: init:Topic.current_step
               value: =Value(Topic.current_step_override)
+
+            # Restore corrections from override inputs
+            - kind: ConditionGroup
+              id: condGrp_restCorr
+              conditions:
+                - id: condItem_hasBsCorr
+                  condition: =!IsBlank(Topic.bs_corrections_override)
+                  actions:
+                    - kind: SetVariable
+                      id: setVar_restBsCorr
+                      variable: Topic.bs_corrections
+                      value: =Topic.bs_corrections_override
+              elseActions: []
+
+            - kind: ConditionGroup
+              id: condGrp_restIsCorr
+              conditions:
+                - id: condItem_hasIsCorr
+                  condition: =!IsBlank(Topic.is_corrections_override)
+                  actions:
+                    - kind: SetVariable
+                      id: setVar_restIsCorr
+                      variable: Topic.is_corrections
+                      value: =Topic.is_corrections_override
+              elseActions: []
+
+            - kind: ConditionGroup
+              id: condGrp_restCfCorr
+              conditions:
+                - id: condItem_hasCfCorr
+                  condition: =!IsBlank(Topic.cf_corrections_override)
+                  actions:
+                    - kind: SetVariable
+                      id: setVar_restCfCorr
+                      variable: Topic.cf_corrections
+                      value: =Topic.cf_corrections_override
+              elseActions: []
+
       elseActions:
         - kind: SetVariable
           id: setVar_initStep
           variable: init:Topic.current_step
           value: =0
 
-    # ──────────────────────────────────────────────
-    # Step 0: Navigator Card — overview of all statements
-    # (skipped when current_step_override is set)
-    # ──────────────────────────────────────────────
+    # ══════════════════════════════════════════════
+    # STEP 0: Navigator Card
+    # ══════════════════════════════════════════════
     - kind: ConditionGroup
       id: condGrp_showNav
       conditions:
         - id: condItem_navShow
           condition: =Topic.current_step = 0
           actions:
+            # Call /api/build-review-card for navigator
+            - kind: HttpRequestAction
+              id: http_navCard7x
+              method: Post
+              url: =Global.ApiBaseUrl & "/api/build-review-card"
+              headers:
+                Content-Type: application/json
+              body:
+                kind: JsonRequestContent
+                content: '={ job_id: Topic.job_id, card_type: "navigator", step_num: 0, total_steps: Topic.total_steps, editable: false, corrections: ParseJSON("{}") }'
+              response: Topic.navigator_card_json
+              errorHandling:
+                kind: ContinueOnErrorBehavior
+                statusCode: Topic.http_status_code
+                errorResponseBody: Topic.http_error_body
+
+            # Check for HTTP error
+            - kind: ConditionGroup
+              id: condGrp_navErr
+              conditions:
+                - id: condItem_navHttpErr
+                  condition: =IsBlank(Topic.navigator_card_json)
+                  actions:
+                    - kind: SendActivity
+                      id: sendMsg_navErr
+                      activity: |-
+                        Something went wrong loading the review navigator. Error: {Topic.http_error_body}
+                    - kind: EndDialog
+                      id: endDlg_navErr
+              elseActions: []
+
+            # Display the navigator Adaptive Card
             - kind: AdaptiveCardPrompt
               id: acPrompt_nav1Rq
-              card:
-                kind: AdaptiveCardTemplate
-                cardContent: |-
-                  {
-                    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
-                    "type": "AdaptiveCard",
-                    "version": "1.5",
-                    "body": [
-                      {
-                        "type": "TextBlock",
-                        "text": "Financial Statement Review",
-                        "weight": "Bolder",
-                        "size": "Large",
-                        "wrap": true
-                      },
-                      {
-                        "type": "TextBlock",
-                        "text": "Company: {Topic.company_name}",
-                        "weight": "Bolder",
-                        "size": "Medium",
-                        "wrap": true
-                      },
-                      {
-                        "type": "TextBlock",
-                        "text": "The extraction is complete. Review the confidence levels below and decide whether to review each statement or skip directly to Excel generation.",
-                        "wrap": true,
-                        "spacing": "Medium"
-                      },
-                      {
-                        "type": "ColumnSet",
-                        "separator": true,
-                        "spacing": "Large",
-                        "columns": [
-                          {
-                            "type": "Column",
-                            "width": "stretch",
-                            "items": [
-                              {
-                                "type": "TextBlock",
-                                "text": "Balance Sheet",
-                                "weight": "Bolder",
-                                "wrap": true
-                              },
-                              {
-                                "type": "TextBlock",
-                                "text": "Confidence: {Topic.bs_confidence}",
-                                "wrap": true
-                              },
-                              {
-                                "type": "TextBlock",
-                                "text": "Flagged rows: {Topic.bs_flag_count}",
-                                "wrap": true,
-                                "isSubtle": true
-                              }
-                            ]
-                          },
-                          {
-                            "type": "Column",
-                            "width": "stretch",
-                            "items": [
-                              {
-                                "type": "TextBlock",
-                                "text": "Income Statement",
-                                "weight": "Bolder",
-                                "wrap": true
-                              },
-                              {
-                                "type": "TextBlock",
-                                "text": "Confidence: {Topic.is_confidence}",
-                                "wrap": true
-                              },
-                              {
-                                "type": "TextBlock",
-                                "text": "Flagged rows: {Topic.is_flag_count}",
-                                "wrap": true,
-                                "isSubtle": true
-                              }
-                            ]
-                          },
-                          {
-                            "type": "Column",
-                            "width": "stretch",
-                            "items": [
-                              {
-                                "type": "TextBlock",
-                                "text": "Cash Flow",
-                                "weight": "Bolder",
-                                "wrap": true
-                              },
-                              {
-                                "type": "TextBlock",
-                                "text": "Confidence: {Topic.cf_confidence}",
-                                "wrap": true
-                              },
-                              {
-                                "type": "TextBlock",
-                                "text": "Flagged rows: {Topic.cf_flag_count}",
-                                "wrap": true,
-                                "isSubtle": true
-                              }
-                            ]
-                          }
-                        ]
-                      }
-                    ],
-                    "actions": [
-                      {
-                        "type": "Action.Submit",
-                        "title": "Start Review",
-                        "data": {
-                          "action": "start_review"
-                        }
-                      },
-                      {
-                        "type": "Action.Submit",
-                        "title": "Skip Review & Generate Excel",
-                        "data": {
-                          "action": "skip_review"
-                        }
-                      }
-                    ]
-                  }
+              card: =Topic.navigator_card_json
               output:
                 binding:
                   action: Topic.nav_action
@@ -251,333 +211,596 @@ beginDialog:
                       id: endDlg_sk1p9z
 
               elseActions:
+                # start_review -> advance to step 1
                 - kind: SetVariable
                   id: setVar_step1x
                   variable: Topic.current_step
                   value: =1
 
-    # ──────────────────────────────────────────────
-    # Wizard Step 1: Balance Sheet
-    # ──────────────────────────────────────────────
+    # ══════════════════════════════════════════════
+    # STEP 1: Balance Sheet Review
+    # ══════════════════════════════════════════════
     - kind: ConditionGroup
       id: condGrp_bs4Lm2
       conditions:
         - id: condItem_bs1Rv
           condition: =Topic.current_step = 1
           actions:
-            - kind: SendActivity
-              id: sendMsg_bsHdr
-              activity: |-
-                **Step 1 of 3: Balance Sheet**
-                Confidence: {Topic.bs_confidence} | Flagged rows: {Topic.bs_flag_count}
-
+            # Skip if balance sheet not found
             - kind: ConditionGroup
-              id: condGrp_bsFlg
+              id: condGrp_bsSkip
               conditions:
-                - id: condItem_bsLow
-                  condition: =Topic.bs_confidence <> "high"
+                - id: condItem_bsNotFound
+                  condition: =!Topic.bs_exists
                   actions:
-                    - kind: SendActivity
-                      id: sendMsg_bsWrn
-                      activity: |-
-                        This statement has flagged issues that may need attention. Items with medium or low confidence may have extraction errors, missing values, or ambiguous formatting.
+                    - kind: SetVariable
+                      id: setVar_bsSkip2
+                      variable: Topic.current_step
+                      value: =2
+              elseActions:
+                # Determine editable flag: medium or low -> editable
+                - kind: SetVariable
+                  id: setVar_bsEditable
+                  variable: init:Topic.current_editable
+                  value: =If(Text(Topic.confidenceParsed.balance_sheet.level) = "medium" Or Text(Topic.confidenceParsed.balance_sheet.level) = "low", true, false)
 
-            - kind: AdaptiveCardPrompt
-              id: acPrompt_bs7Kq
-              card:
-                kind: AdaptiveCardTemplate
-                cardContent: |-
-                  {
-                    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
-                    "type": "AdaptiveCard",
-                    "version": "1.5",
-                    "body": [
-                      {
-                        "type": "TextBlock",
-                        "text": "Balance Sheet Review",
-                        "weight": "Bolder",
-                        "size": "Large",
-                        "wrap": true
-                      },
-                      {
-                        "type": "FactSet",
-                        "facts": [
-                          { "title": "Confidence:", "value": "{Topic.bs_confidence}" },
-                          { "title": "Flagged Rows:", "value": "{Topic.bs_flag_count}" }
-                        ]
-                      },
-                      {
-                        "type": "TextBlock",
-                        "text": "Review the balance sheet data and proceed when ready.",
-                        "wrap": true,
-                        "spacing": "Medium"
-                      }
-                    ],
-                    "actions": [
-                      {
-                        "type": "Action.Submit",
-                        "title": "Next \u2192 Income Statement",
-                        "data": {
-                          "action": "next"
-                        }
-                      }
-                    ]
-                  }
-              output:
-                binding:
-                  action: Topic.wizard_action
-              outputType:
-                properties:
-                  action:
-                    displayName: action
-                    type: String
+                # Calculate step_num (always 1 for BS since it's first)
+                - kind: SetVariable
+                  id: setVar_bsStepNum
+                  variable: init:Topic.current_step_num
+                  value: =1
 
-            - kind: SetVariable
-              id: setVar_step2x
-              variable: Topic.current_step
-              value: =2
+                # Call /api/build-review-card for balance sheet
+                - kind: HttpRequestAction
+                  id: http_bsCard3v
+                  method: Post
+                  url: =Global.ApiBaseUrl & "/api/build-review-card"
+                  headers:
+                    Content-Type: application/json
+                  body:
+                    kind: JsonRequestContent
+                    content: '={ job_id: Topic.job_id, card_type: "statement", statement_type: "balance_sheet", step_num: Topic.current_step_num, total_steps: Topic.total_steps, editable: Topic.current_editable, corrections: ParseJSON(Topic.bs_corrections) }'
+                  response: Topic.statement_card_json
+                  errorHandling:
+                    kind: ContinueOnErrorBehavior
+                    statusCode: Topic.http_status_code
+                    errorResponseBody: Topic.http_error_body
 
-    # ──────────────────────────────────────────────
-    # Wizard Step 2: Income Statement
-    # ──────────────────────────────────────────────
+                - kind: ConditionGroup
+                  id: condGrp_bsCardErr
+                  conditions:
+                    - id: condItem_bsHttpErr
+                      condition: =IsBlank(Topic.statement_card_json)
+                      actions:
+                        - kind: SendActivity
+                          id: sendMsg_bsErr
+                          activity: |-
+                            Failed to load the balance sheet review card. Error: {Topic.http_error_body}
+                        - kind: EndDialog
+                          id: endDlg_bsErr
+                  elseActions: []
+
+                # Display the balance sheet Adaptive Card
+                - kind: AdaptiveCardPrompt
+                  id: acPrompt_bs7Kq
+                  card: =Topic.statement_card_json
+                  output:
+                    binding:
+                      actionField: Topic.card_response
+                  outputType:
+                    properties:
+                      actionField:
+                        displayName: Card Response
+                        type: String
+
+                # Parse the card submission via API
+                - kind: HttpRequestAction
+                  id: http_bsParse5w
+                  method: Post
+                  url: =Global.ApiBaseUrl & "/api/parse-card-submission"
+                  headers:
+                    Content-Type: application/json
+                  body:
+                    kind: JsonRequestContent
+                    content: '={ job_id: Topic.job_id, statement_type: "balance_sheet", payload: ParseJSON(Topic.card_response) }'
+                  response: Topic.parse_response
+                  errorHandling:
+                    kind: ContinueOnErrorBehavior
+                    statusCode: Topic.http_status_code
+                    errorResponseBody: Topic.http_error_body
+
+                # Extract action and corrections from parse response
+                - kind: SetVariable
+                  id: setVar_bsParsed
+                  variable: init:Topic.parsed_result
+                  value: =ParseJSON(Topic.parse_response)
+
+                - kind: SetVariable
+                  id: setVar_bsStoreCorr
+                  variable: Topic.bs_corrections
+                  value: =Text(JSON(Topic.parsed_result.corrections))
+
+                - kind: SetVariable
+                  id: setVar_bsAction
+                  variable: init:Topic.current_action
+                  value: =Text(Topic.parsed_result.action)
+
+                # Handle actions: next, submit, edit
+                - kind: ConditionGroup
+                  id: condGrp_bsAction
+                  conditions:
+                    - id: condItem_bsNext
+                      condition: =Topic.current_action = "next"
+                      actions:
+                        - kind: SetVariable
+                          id: setVar_bsNext
+                          variable: Topic.current_step
+                          value: =2
+
+                    - id: condItem_bsSubmit
+                      condition: =Topic.current_action = "submit"
+                      actions:
+                        - kind: SetVariable
+                          id: setVar_bsSubmitStep
+                          variable: Topic.current_step
+                          value: =99
+
+                    - id: condItem_bsEdit
+                      condition: =Topic.current_action = "edit"
+                      actions:
+                        # Re-display with editable=true via ReplaceDialog
+                        - kind: ReplaceDialog
+                          id: repDlg_bsEdit
+                          dialog: cree1_FinanceStatementAnalysisAgent.topic.HITLReview
+                          input:
+                            kind: ActionInputBinding
+                            binding:
+                              job_id: =Topic.job_id
+                              confidence: =Topic.confidence
+                              balance_sheet: =Topic.balance_sheet
+                              income_statement: =Topic.income_statement
+                              cash_flow: =Topic.cash_flow
+                              summary: =Topic.summary
+                              company_name: =Topic.company_name
+                              current_step_override: ="1"
+                              bs_corrections_override: =Topic.bs_corrections
+                              is_corrections_override: =Topic.is_corrections
+                              cf_corrections_override: =Topic.cf_corrections
+
+    # ══════════════════════════════════════════════
+    # STEP 2: Income Statement Review
+    # ══════════════════════════════════════════════
     - kind: ConditionGroup
       id: condGrp_is8Nm3
       conditions:
         - id: condItem_is2Rv
           condition: =Topic.current_step = 2
           actions:
-            - kind: SendActivity
-              id: sendMsg_isHdr
-              activity: |-
-                **Step 2 of 3: Income Statement**
-                Confidence: {Topic.is_confidence} | Flagged rows: {Topic.is_flag_count}
-
+            # Skip if income statement not found
             - kind: ConditionGroup
-              id: condGrp_isFlg
+              id: condGrp_isSkip
               conditions:
-                - id: condItem_isLow
-                  condition: =Topic.is_confidence <> "high"
+                - id: condItem_isNotFound
+                  condition: =!Topic.is_exists
                   actions:
-                    - kind: SendActivity
-                      id: sendMsg_isWrn
-                      activity: |-
-                        This statement has flagged issues that may need attention. Items with medium or low confidence may have extraction errors, missing values, or ambiguous formatting.
-
-            - kind: AdaptiveCardPrompt
-              id: acPrompt_is3Wz
-              card:
-                kind: AdaptiveCardTemplate
-                cardContent: |-
-                  {
-                    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
-                    "type": "AdaptiveCard",
-                    "version": "1.5",
-                    "body": [
-                      {
-                        "type": "TextBlock",
-                        "text": "Income Statement Review",
-                        "weight": "Bolder",
-                        "size": "Large",
-                        "wrap": true
-                      },
-                      {
-                        "type": "FactSet",
-                        "facts": [
-                          { "title": "Confidence:", "value": "{Topic.is_confidence}" },
-                          { "title": "Flagged Rows:", "value": "{Topic.is_flag_count}" }
-                        ]
-                      },
-                      {
-                        "type": "TextBlock",
-                        "text": "Review the income statement data and proceed when ready.",
-                        "wrap": true,
-                        "spacing": "Medium"
-                      }
-                    ],
-                    "actions": [
-                      {
-                        "type": "Action.Submit",
-                        "title": "\u2190 Previous",
-                        "data": {
-                          "action": "previous"
-                        }
-                      },
-                      {
-                        "type": "Action.Submit",
-                        "title": "Next \u2192 Cash Flow",
-                        "data": {
-                          "action": "next"
-                        }
-                      }
-                    ]
-                  }
-              output:
-                binding:
-                  action: Topic.wizard_action
-              outputType:
-                properties:
-                  action:
-                    displayName: action
-                    type: String
-
-            - kind: ConditionGroup
-              id: condGrp_isNav
-              conditions:
-                - id: condItem_isPrev
-                  condition: =Topic.wizard_action = "previous"
-                  actions:
-                    - kind: ReplaceDialog
-                      id: repDlg_isPrev
-                      dialog: cree1_FinanceStatementAnalysisAgent.topic.HITLReview
-                      input:
-                        kind: ActionInputBinding
-                        binding:
-                          job_id: =Topic.job_id
-                          confidence: =Topic.confidence
-                          balance_sheet: =Topic.balance_sheet
-                          income_statement: =Topic.income_statement
-                          cash_flow: =Topic.cash_flow
-                          summary: =Topic.summary
-                          company_name: =Topic.company_name
-                          current_step_override: ="1"
-
+                    - kind: SetVariable
+                      id: setVar_isSkip3
+                      variable: Topic.current_step
+                      value: =3
               elseActions:
+                # Determine editable flag
                 - kind: SetVariable
-                  id: setVar_step3x
-                  variable: Topic.current_step
-                  value: =3
+                  id: setVar_isEditable
+                  variable: Topic.current_editable
+                  value: =If(Text(Topic.confidenceParsed.income_statement.level) = "medium" Or Text(Topic.confidenceParsed.income_statement.level) = "low", true, false)
 
-    # ──────────────────────────────────────────────
-    # Wizard Step 3: Cash Flow
-    # ──────────────────────────────────────────────
+                # Calculate step_num
+                - kind: SetVariable
+                  id: setVar_isStepNum
+                  variable: Topic.current_step_num
+                  value: =If(Topic.bs_exists, 2, 1)
+
+                # Call /api/build-review-card for income statement
+                - kind: HttpRequestAction
+                  id: http_isCard6t
+                  method: Post
+                  url: =Global.ApiBaseUrl & "/api/build-review-card"
+                  headers:
+                    Content-Type: application/json
+                  body:
+                    kind: JsonRequestContent
+                    content: '={ job_id: Topic.job_id, card_type: "statement", statement_type: "income_statement", step_num: Topic.current_step_num, total_steps: Topic.total_steps, editable: Topic.current_editable, corrections: ParseJSON(Topic.is_corrections) }'
+                  response: Topic.statement_card_json
+                  errorHandling:
+                    kind: ContinueOnErrorBehavior
+                    statusCode: Topic.http_status_code
+                    errorResponseBody: Topic.http_error_body
+
+                - kind: ConditionGroup
+                  id: condGrp_isCardErr
+                  conditions:
+                    - id: condItem_isHttpErr
+                      condition: =IsBlank(Topic.statement_card_json)
+                      actions:
+                        - kind: SendActivity
+                          id: sendMsg_isErr
+                          activity: |-
+                            Failed to load the income statement review card. Error: {Topic.http_error_body}
+                        - kind: EndDialog
+                          id: endDlg_isErr
+                  elseActions: []
+
+                # Display the income statement Adaptive Card
+                - kind: AdaptiveCardPrompt
+                  id: acPrompt_is3Wz
+                  card: =Topic.statement_card_json
+                  output:
+                    binding:
+                      actionField: Topic.card_response
+                  outputType:
+                    properties:
+                      actionField:
+                        displayName: Card Response
+                        type: String
+
+                # Parse the card submission via API
+                - kind: HttpRequestAction
+                  id: http_isParse8r
+                  method: Post
+                  url: =Global.ApiBaseUrl & "/api/parse-card-submission"
+                  headers:
+                    Content-Type: application/json
+                  body:
+                    kind: JsonRequestContent
+                    content: '={ job_id: Topic.job_id, statement_type: "income_statement", payload: ParseJSON(Topic.card_response) }'
+                  response: Topic.parse_response
+                  errorHandling:
+                    kind: ContinueOnErrorBehavior
+                    statusCode: Topic.http_status_code
+                    errorResponseBody: Topic.http_error_body
+
+                - kind: SetVariable
+                  id: setVar_isParsed
+                  variable: Topic.parsed_result
+                  value: =ParseJSON(Topic.parse_response)
+
+                - kind: SetVariable
+                  id: setVar_isStoreCorr
+                  variable: Topic.is_corrections
+                  value: =Text(JSON(Topic.parsed_result.corrections))
+
+                - kind: SetVariable
+                  id: setVar_isAction
+                  variable: Topic.current_action
+                  value: =Text(Topic.parsed_result.action)
+
+                # Handle actions: next, previous, submit, edit
+                - kind: ConditionGroup
+                  id: condGrp_isAction
+                  conditions:
+                    - id: condItem_isNext
+                      condition: =Topic.current_action = "next"
+                      actions:
+                        - kind: SetVariable
+                          id: setVar_isNext
+                          variable: Topic.current_step
+                          value: =3
+
+                    - id: condItem_isPrev
+                      condition: =Topic.current_action = "previous"
+                      actions:
+                        - kind: ReplaceDialog
+                          id: repDlg_isPrev
+                          dialog: cree1_FinanceStatementAnalysisAgent.topic.HITLReview
+                          input:
+                            kind: ActionInputBinding
+                            binding:
+                              job_id: =Topic.job_id
+                              confidence: =Topic.confidence
+                              balance_sheet: =Topic.balance_sheet
+                              income_statement: =Topic.income_statement
+                              cash_flow: =Topic.cash_flow
+                              summary: =Topic.summary
+                              company_name: =Topic.company_name
+                              current_step_override: ="1"
+                              bs_corrections_override: =Topic.bs_corrections
+                              is_corrections_override: =Topic.is_corrections
+                              cf_corrections_override: =Topic.cf_corrections
+
+                    - id: condItem_isSubmit
+                      condition: =Topic.current_action = "submit"
+                      actions:
+                        - kind: SetVariable
+                          id: setVar_isSubmitStep
+                          variable: Topic.current_step
+                          value: =99
+
+                    - id: condItem_isEdit
+                      condition: =Topic.current_action = "edit"
+                      actions:
+                        - kind: ReplaceDialog
+                          id: repDlg_isEdit
+                          dialog: cree1_FinanceStatementAnalysisAgent.topic.HITLReview
+                          input:
+                            kind: ActionInputBinding
+                            binding:
+                              job_id: =Topic.job_id
+                              confidence: =Topic.confidence
+                              balance_sheet: =Topic.balance_sheet
+                              income_statement: =Topic.income_statement
+                              cash_flow: =Topic.cash_flow
+                              summary: =Topic.summary
+                              company_name: =Topic.company_name
+                              current_step_override: ="2"
+                              bs_corrections_override: =Topic.bs_corrections
+                              is_corrections_override: =Topic.is_corrections
+                              cf_corrections_override: =Topic.cf_corrections
+
+    # ══════════════════════════════════════════════
+    # STEP 3: Cash Flow Review
+    # ══════════════════════════════════════════════
     - kind: ConditionGroup
       id: condGrp_cf2Rp4
       conditions:
         - id: condItem_cf3Rv
           condition: =Topic.current_step = 3
           actions:
+            # Skip if cash flow not found
+            - kind: ConditionGroup
+              id: condGrp_cfSkip
+              conditions:
+                - id: condItem_cfNotFound
+                  condition: =!Topic.cf_exists
+                  actions:
+                    # No more statements; go to Excel generation
+                    - kind: SetVariable
+                      id: setVar_cfSkip99
+                      variable: Topic.current_step
+                      value: =99
+              elseActions:
+                # Determine editable flag
+                - kind: SetVariable
+                  id: setVar_cfEditable
+                  variable: Topic.current_editable
+                  value: =If(Text(Topic.confidenceParsed.cash_flow.level) = "medium" Or Text(Topic.confidenceParsed.cash_flow.level) = "low", true, false)
+
+                # Calculate step_num
+                - kind: SetVariable
+                  id: setVar_cfStepNum
+                  variable: Topic.current_step_num
+                  value: =If(Topic.bs_exists, 1, 0) + If(Topic.is_exists, 1, 0) + 1
+
+                # Call /api/build-review-card for cash flow
+                - kind: HttpRequestAction
+                  id: http_cfCard2m
+                  method: Post
+                  url: =Global.ApiBaseUrl & "/api/build-review-card"
+                  headers:
+                    Content-Type: application/json
+                  body:
+                    kind: JsonRequestContent
+                    content: '={ job_id: Topic.job_id, card_type: "statement", statement_type: "cash_flow", step_num: Topic.current_step_num, total_steps: Topic.total_steps, editable: Topic.current_editable, corrections: ParseJSON(Topic.cf_corrections) }'
+                  response: Topic.statement_card_json
+                  errorHandling:
+                    kind: ContinueOnErrorBehavior
+                    statusCode: Topic.http_status_code
+                    errorResponseBody: Topic.http_error_body
+
+                - kind: ConditionGroup
+                  id: condGrp_cfCardErr
+                  conditions:
+                    - id: condItem_cfHttpErr
+                      condition: =IsBlank(Topic.statement_card_json)
+                      actions:
+                        - kind: SendActivity
+                          id: sendMsg_cfErr
+                          activity: |-
+                            Failed to load the cash flow review card. Error: {Topic.http_error_body}
+                        - kind: EndDialog
+                          id: endDlg_cfErr
+                  elseActions: []
+
+                # Display the cash flow Adaptive Card
+                - kind: AdaptiveCardPrompt
+                  id: acPrompt_cf9Tx
+                  card: =Topic.statement_card_json
+                  output:
+                    binding:
+                      actionField: Topic.card_response
+                  outputType:
+                    properties:
+                      actionField:
+                        displayName: Card Response
+                        type: String
+
+                # Parse the card submission via API
+                - kind: HttpRequestAction
+                  id: http_cfParse4n
+                  method: Post
+                  url: =Global.ApiBaseUrl & "/api/parse-card-submission"
+                  headers:
+                    Content-Type: application/json
+                  body:
+                    kind: JsonRequestContent
+                    content: '={ job_id: Topic.job_id, statement_type: "cash_flow", payload: ParseJSON(Topic.card_response) }'
+                  response: Topic.parse_response
+                  errorHandling:
+                    kind: ContinueOnErrorBehavior
+                    statusCode: Topic.http_status_code
+                    errorResponseBody: Topic.http_error_body
+
+                - kind: SetVariable
+                  id: setVar_cfParsed
+                  variable: Topic.parsed_result
+                  value: =ParseJSON(Topic.parse_response)
+
+                - kind: SetVariable
+                  id: setVar_cfStoreCorr
+                  variable: Topic.cf_corrections
+                  value: =Text(JSON(Topic.parsed_result.corrections))
+
+                - kind: SetVariable
+                  id: setVar_cfAction
+                  variable: Topic.current_action
+                  value: =Text(Topic.parsed_result.action)
+
+                # Handle actions: previous, submit, edit
+                - kind: ConditionGroup
+                  id: condGrp_cfAction
+                  conditions:
+                    - id: condItem_cfPrev
+                      condition: =Topic.current_action = "previous"
+                      actions:
+                        - kind: ReplaceDialog
+                          id: repDlg_cfPrev
+                          dialog: cree1_FinanceStatementAnalysisAgent.topic.HITLReview
+                          input:
+                            kind: ActionInputBinding
+                            binding:
+                              job_id: =Topic.job_id
+                              confidence: =Topic.confidence
+                              balance_sheet: =Topic.balance_sheet
+                              income_statement: =Topic.income_statement
+                              cash_flow: =Topic.cash_flow
+                              summary: =Topic.summary
+                              company_name: =Topic.company_name
+                              current_step_override: ="2"
+                              bs_corrections_override: =Topic.bs_corrections
+                              is_corrections_override: =Topic.is_corrections
+                              cf_corrections_override: =Topic.cf_corrections
+
+                    - id: condItem_cfSubmit
+                      condition: =Topic.current_action = "submit"
+                      actions:
+                        - kind: SetVariable
+                          id: setVar_cfSubmitStep
+                          variable: Topic.current_step
+                          value: =99
+
+                    - id: condItem_cfEdit
+                      condition: =Topic.current_action = "edit"
+                      actions:
+                        - kind: ReplaceDialog
+                          id: repDlg_cfEdit
+                          dialog: cree1_FinanceStatementAnalysisAgent.topic.HITLReview
+                          input:
+                            kind: ActionInputBinding
+                            binding:
+                              job_id: =Topic.job_id
+                              confidence: =Topic.confidence
+                              balance_sheet: =Topic.balance_sheet
+                              income_statement: =Topic.income_statement
+                              cash_flow: =Topic.cash_flow
+                              summary: =Topic.summary
+                              company_name: =Topic.company_name
+                              current_step_override: ="3"
+                              bs_corrections_override: =Topic.bs_corrections
+                              is_corrections_override: =Topic.is_corrections
+                              cf_corrections_override: =Topic.cf_corrections
+
+                  elseActions:
+                    # next or default -> go to Excel generation
+                    - kind: SetVariable
+                      id: setVar_cfNext99
+                      variable: Topic.current_step
+                      value: =99
+
+    # ══════════════════════════════════════════════
+    # STEP 99: Apply Corrections & Generate Excel
+    # ══════════════════════════════════════════════
+    - kind: ConditionGroup
+      id: condGrp_genExcel
+      conditions:
+        - id: condItem_genExcel
+          condition: =Topic.current_step = 99
+          actions:
             - kind: SendActivity
-              id: sendMsg_cfHdr
-              activity: |-
-                **Step 3 of 3: Cash Flow Statement**
-                Confidence: {Topic.cf_confidence} | Flagged rows: {Topic.cf_flag_count}
+              id: sendMsg_genXl
+              activity: Review complete. Applying corrections and generating your Excel report...
+
+            # Call /api/apply-corrections
+            - kind: HttpRequestAction
+              id: http_applyCorr9k
+              method: Post
+              url: =Global.ApiBaseUrl & "/api/apply-corrections"
+              headers:
+                Content-Type: application/json
+              body:
+                kind: JsonRequestContent
+                content: '={ job_id: Topic.job_id, corrections: ParseJSON(Concatenate("{""balance_sheet"":", Topic.bs_corrections, ",""income_statement"":", Topic.is_corrections, ",""cash_flow"":", Topic.cf_corrections, "}")) }'
+              response: Topic.corrected_response
+              errorHandling:
+                kind: ContinueOnErrorBehavior
+                statusCode: Topic.http_status_code
+                errorResponseBody: Topic.http_error_body
 
             - kind: ConditionGroup
-              id: condGrp_cfFlg
+              id: condGrp_corrErr
               conditions:
-                - id: condItem_cfLow
-                  condition: =Topic.cf_confidence <> "high"
+                - id: condItem_corrHttpErr
+                  condition: =IsBlank(Topic.corrected_response)
                   actions:
                     - kind: SendActivity
-                      id: sendMsg_cfWrn
+                      id: sendMsg_corrErr
                       activity: |-
-                        This statement has flagged issues that may need attention. Items with medium or low confidence may have extraction errors, missing values, or ambiguous formatting.
+                        Failed to apply corrections. Error: {Topic.http_error_body}
+                    - kind: EndDialog
+                      id: endDlg_corrErr
+              elseActions: []
 
-            - kind: AdaptiveCardPrompt
-              id: acPrompt_cf9Tx
-              card:
-                kind: AdaptiveCardTemplate
-                cardContent: |-
-                  {
-                    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
-                    "type": "AdaptiveCard",
-                    "version": "1.5",
-                    "body": [
-                      {
-                        "type": "TextBlock",
-                        "text": "Cash Flow Statement Review",
-                        "weight": "Bolder",
-                        "size": "Large",
-                        "wrap": true
-                      },
-                      {
-                        "type": "FactSet",
-                        "facts": [
-                          { "title": "Confidence:", "value": "{Topic.cf_confidence}" },
-                          { "title": "Flagged Rows:", "value": "{Topic.cf_flag_count}" }
-                        ]
-                      },
-                      {
-                        "type": "TextBlock",
-                        "text": "Review the cash flow data. When ready, submit to generate the Excel report.",
-                        "wrap": true,
-                        "spacing": "Medium"
-                      }
-                    ],
-                    "actions": [
-                      {
-                        "type": "Action.Submit",
-                        "title": "\u2190 Previous",
-                        "data": {
-                          "action": "previous"
-                        }
-                      },
-                      {
-                        "type": "Action.Submit",
-                        "title": "Submit & Generate Excel",
-                        "data": {
-                          "action": "submit"
-                        }
-                      }
-                    ]
-                  }
-              output:
+            # Parse corrected response
+            - kind: SetVariable
+              id: setVar_corrParsed
+              variable: init:Topic.corrected_data
+              value: =ParseJSON(Topic.corrected_response)
+
+            - kind: SetVariable
+              id: setVar_corrBs
+              variable: init:Topic.corrected_balance_sheet
+              value: =Text(Topic.corrected_data.balance_sheet)
+
+            - kind: SetVariable
+              id: setVar_corrIs
+              variable: init:Topic.corrected_income_statement
+              value: =Text(Topic.corrected_data.income_statement)
+
+            - kind: SetVariable
+              id: setVar_corrCf
+              variable: init:Topic.corrected_cash_flow
+              value: =Text(Topic.corrected_data.cash_flow)
+
+            - kind: SetVariable
+              id: setVar_corrSummary
+              variable: init:Topic.corrected_summary
+              value: =Text(Topic.corrected_data.summary)
+
+            - kind: SetVariable
+              id: setVar_corrCompany
+              variable: init:Topic.corrected_company_name
+              value: =Text(Topic.corrected_data.company_name)
+
+            # Pass corrected data to FinanceStatementProcessor for Excel
+            - kind: BeginDialog
+              id: beginDlg_genXl
+              dialog: cree1_FinanceStatementAnalysisAgent.action.FinanceStatementProcessor
+              input:
+                kind: ActionInputBinding
                 binding:
-                  action: Topic.wizard_action
-              outputType:
-                properties:
-                  action:
-                    displayName: action
-                    type: String
+                  balance_sheet: =Topic.corrected_balance_sheet
+                  income_statement: =Topic.corrected_income_statement
+                  cash_flow: =Topic.corrected_cash_flow
+                  summary: =Topic.corrected_summary
+                  company_name: =Topic.corrected_company_name
+              output:
+                kind: ActionOutputBinding
+                binding:
+                  fileurl: Topic.fileurl
+                  filename: Topic.filename
 
-            - kind: ConditionGroup
-              id: condGrp_cfNav
-              conditions:
-                - id: condItem_cfPrev
-                  condition: =Topic.wizard_action = "previous"
-                  actions:
-                    - kind: ReplaceDialog
-                      id: repDlg_cfPrev
-                      dialog: cree1_FinanceStatementAnalysisAgent.topic.HITLReview
-                      input:
-                        kind: ActionInputBinding
-                        binding:
-                          job_id: =Topic.job_id
-                          confidence: =Topic.confidence
-                          balance_sheet: =Topic.balance_sheet
-                          income_statement: =Topic.income_statement
-                          cash_flow: =Topic.cash_flow
-                          summary: =Topic.summary
-                          company_name: =Topic.company_name
-                          current_step_override: ="2"
-
-              elseActions:
-                # Submit: Generate Excel
-                - kind: SendActivity
-                  id: sendMsg_genXl
-                  activity: Review complete. Generating your Excel report now...
-
-                - kind: BeginDialog
-                  id: beginDlg_genXl
-                  dialog: cree1_FinanceStatementAnalysisAgent.action.FinanceStatementProcessor
-                  input:
-                    kind: ActionInputBinding
-                    binding:
-                      balance_sheet: =Topic.balance_sheet
-                      income_statement: =Topic.income_statement
-                      cash_flow: =Topic.cash_flow
-                      summary: =Topic.summary
-                      company_name: =Topic.company_name
-                  output:
-                    kind: ActionOutputBinding
-                    binding:
-                      fileurl: Topic.fileurl
-                      filename: Topic.filename
-
-                - kind: SendActivity
-                  id: sendMsg_dlRdy
-                  activity: |-
-                    Your report is ready: [{Topic.filename}]({Topic.fileurl})
+            - kind: SendActivity
+              id: sendMsg_dlRdy
+              activity: |-
+                Your report is ready: [{Topic.filename}]({Topic.fileurl})
 
 inputType:
   properties:
@@ -619,4 +842,19 @@ inputType:
     current_step_override:
       displayName: Current Step Override
       description: Used internally when navigating back to a previous step via ReplaceDialog
+      type: String
+
+    bs_corrections_override:
+      displayName: BS Corrections Override
+      description: Balance sheet corrections JSON passed during back-navigation
+      type: String
+
+    is_corrections_override:
+      displayName: IS Corrections Override
+      description: Income statement corrections JSON passed during back-navigation
+      type: String
+
+    cf_corrections_override:
+      displayName: CF Corrections Override
+      description: Cash flow corrections JSON passed during back-navigation
       type: String

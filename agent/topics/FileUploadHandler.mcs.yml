@@ -41,6 +41,7 @@ beginDialog:
           summary: Topic.summary
           company_name: Topic.company_name
           confidence: Topic.confidence
+          job_id: Topic.job_id
 
     - kind: SendActivity
       id: sendMessage_summary
@@ -63,3 +64,4 @@ beginDialog:
           summary: =Topic.summary
           company_name: =Topic.company_name
           confidence: =Topic.confidence
+          job_id: =Topic.job_id
