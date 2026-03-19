@@ -1,0 +1,622 @@
+# Name: HITL Review
+# Human-in-the-loop review wizard for financial statement extractions.
+# Triggered by redirect from FileUploadHandler after extraction completes.
+# Shows adaptive cards for each statement with confidence levels, then submits for Excel generation.
+kind: AdaptiveDialog
+modelDescription: >-
+  This topic provides a human-in-the-loop review workflow for extracted financial statements.
+  It displays confidence levels for each statement and lets the analyst navigate through them
+  before generating the Excel report. Only triggered by redirect from the File Upload Handler.
+
+beginDialog:
+  kind: OnSystemRedirect
+  id: main
+
+  actions:
+    # ──────────────────────────────────────────────
+    # Parse confidence JSON into per-statement variables
+    # Expected format: {"balance_sheet":{"level":"high","flagged_rows":[]},"income_statement":{"level":"medium","flagged_rows":[2,5]},"cash_flow":{"level":"low","flagged_rows":[1,3,7]}}
+    # ──────────────────────────────────────────────
+    - kind: SetVariable
+      id: setVar_parseConf
+      variable: init:Topic.confidenceParsed
+      value: =ParseJSON(Topic.confidence)
+
+    - kind: SetVariable
+      id: setVar_bsConf
+      variable: init:Topic.bs_confidence
+      value: =Text(Topic.confidenceParsed.balance_sheet.level)
+
+    - kind: SetVariable
+      id: setVar_bsFlags
+      variable: init:Topic.bs_flag_count
+      value: =Text(CountRows(Table(Topic.confidenceParsed.balance_sheet.flagged_rows)))
+
+    - kind: SetVariable
+      id: setVar_isConf
+      variable: init:Topic.is_confidence
+      value: =Text(Topic.confidenceParsed.income_statement.level)
+
+    - kind: SetVariable
+      id: setVar_isFlags
+      variable: init:Topic.is_flag_count
+      value: =Text(CountRows(Table(Topic.confidenceParsed.income_statement.flagged_rows)))
+
+    - kind: SetVariable
+      id: setVar_cfConf
+      variable: init:Topic.cf_confidence
+      value: =Text(Topic.confidenceParsed.cash_flow.level)
+
+    - kind: SetVariable
+      id: setVar_cfFlags
+      variable: init:Topic.cf_flag_count
+      value: =Text(CountRows(Table(Topic.confidenceParsed.cash_flow.flagged_rows)))
+
+    # ──────────────────────────────────────────────
+    # Handle step override (for back-navigation via ReplaceDialog)
+    # ──────────────────────────────────────────────
+    - kind: ConditionGroup
+      id: condGrp_ovr1Kz
+      conditions:
+        - id: condItem_hasOvr
+          condition: =!IsBlank(Topic.current_step_override)
+          actions:
+            - kind: SetVariable
+              id: setVar_ovrStep
+              variable: init:Topic.current_step
+              value: =Value(Topic.current_step_override)
+      elseActions:
+        - kind: SetVariable
+          id: setVar_initStep
+          variable: init:Topic.current_step
+          value: =0
+
+    # ──────────────────────────────────────────────
+    # Step 0: Navigator Card — overview of all statements
+    # (skipped when current_step_override is set)
+    # ──────────────────────────────────────────────
+    - kind: ConditionGroup
+      id: condGrp_showNav
+      conditions:
+        - id: condItem_navShow
+          condition: =Topic.current_step = 0
+          actions:
+            - kind: AdaptiveCardPrompt
+              id: acPrompt_nav1Rq
+              card:
+                kind: AdaptiveCardTemplate
+                cardContent: |-
+                  {
+                    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                    "type": "AdaptiveCard",
+                    "version": "1.5",
+                    "body": [
+                      {
+                        "type": "TextBlock",
+                        "text": "Financial Statement Review",
+                        "weight": "Bolder",
+                        "size": "Large",
+                        "wrap": true
+                      },
+                      {
+                        "type": "TextBlock",
+                        "text": "Company: {Topic.company_name}",
+                        "weight": "Bolder",
+                        "size": "Medium",
+                        "wrap": true
+                      },
+                      {
+                        "type": "TextBlock",
+                        "text": "The extraction is complete. Review the confidence levels below and decide whether to review each statement or skip directly to Excel generation.",
+                        "wrap": true,
+                        "spacing": "Medium"
+                      },
+                      {
+                        "type": "ColumnSet",
+                        "separator": true,
+                        "spacing": "Large",
+                        "columns": [
+                          {
+                            "type": "Column",
+                            "width": "stretch",
+                            "items": [
+                              {
+                                "type": "TextBlock",
+                                "text": "Balance Sheet",
+                                "weight": "Bolder",
+                                "wrap": true
+                              },
+                              {
+                                "type": "TextBlock",
+                                "text": "Confidence: {Topic.bs_confidence}",
+                                "wrap": true
+                              },
+                              {
+                                "type": "TextBlock",
+                                "text": "Flagged rows: {Topic.bs_flag_count}",
+                                "wrap": true,
+                                "isSubtle": true
+                              }
+                            ]
+                          },
+                          {
+                            "type": "Column",
+                            "width": "stretch",
+                            "items": [
+                              {
+                                "type": "TextBlock",
+                                "text": "Income Statement",
+                                "weight": "Bolder",
+                                "wrap": true
+                              },
+                              {
+                                "type": "TextBlock",
+                                "text": "Confidence: {Topic.is_confidence}",
+                                "wrap": true
+                              },
+                              {
+                                "type": "TextBlock",
+                                "text": "Flagged rows: {Topic.is_flag_count}",
+                                "wrap": true,
+                                "isSubtle": true
+                              }
+                            ]
+                          },
+                          {
+                            "type": "Column",
+                            "width": "stretch",
+                            "items": [
+                              {
+                                "type": "TextBlock",
+                                "text": "Cash Flow",
+                                "weight": "Bolder",
+                                "wrap": true
+                              },
+                              {
+                                "type": "TextBlock",
+                                "text": "Confidence: {Topic.cf_confidence}",
+                                "wrap": true
+                              },
+                              {
+                                "type": "TextBlock",
+                                "text": "Flagged rows: {Topic.cf_flag_count}",
+                                "wrap": true,
+                                "isSubtle": true
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ],
+                    "actions": [
+                      {
+                        "type": "Action.Submit",
+                        "title": "Start Review",
+                        "data": {
+                          "action": "start_review"
+                        }
+                      },
+                      {
+                        "type": "Action.Submit",
+                        "title": "Skip Review & Generate Excel",
+                        "data": {
+                          "action": "skip_review"
+                        }
+                      }
+                    ]
+                  }
+              output:
+                binding:
+                  action: Topic.nav_action
+              outputType:
+                properties:
+                  action:
+                    displayName: action
+                    type: String
+
+            # Branch: Skip review -> generate Excel immediately
+            - kind: ConditionGroup
+              id: condGrp_s9Pv2w
+              conditions:
+                - id: condItem_skipRv
+                  condition: =Topic.nav_action = "skip_review"
+                  actions:
+                    - kind: SendActivity
+                      id: sendMsg_skip3q
+                      activity: Skipping review. Generating your Excel report now...
+
+                    - kind: BeginDialog
+                      id: beginDlg_skip7x
+                      dialog: cree1_FinanceStatementAnalysisAgent.action.FinanceStatementProcessor
+                      input:
+                        kind: ActionInputBinding
+                        binding:
+                          balance_sheet: =Topic.balance_sheet
+                          income_statement: =Topic.income_statement
+                          cash_flow: =Topic.cash_flow
+                          summary: =Topic.summary
+                          company_name: =Topic.company_name
+                      output:
+                        kind: ActionOutputBinding
+                        binding:
+                          fileurl: Topic.fileurl
+                          filename: Topic.filename
+
+                    - kind: SendActivity
+                      id: sendMsg_dlSkp4
+                      activity: |-
+                        Your report is ready: [{Topic.filename}]({Topic.fileurl})
+
+                    - kind: EndDialog
+                      id: endDlg_sk1p9z
+
+              elseActions:
+                - kind: SetVariable
+                  id: setVar_step1x
+                  variable: Topic.current_step
+                  value: =1
+
+    # ──────────────────────────────────────────────
+    # Wizard Step 1: Balance Sheet
+    # ──────────────────────────────────────────────
+    - kind: ConditionGroup
+      id: condGrp_bs4Lm2
+      conditions:
+        - id: condItem_bs1Rv
+          condition: =Topic.current_step = 1
+          actions:
+            - kind: SendActivity
+              id: sendMsg_bsHdr
+              activity: |-
+                **Step 1 of 3: Balance Sheet**
+                Confidence: {Topic.bs_confidence} | Flagged rows: {Topic.bs_flag_count}
+
+            - kind: ConditionGroup
+              id: condGrp_bsFlg
+              conditions:
+                - id: condItem_bsLow
+                  condition: =Topic.bs_confidence <> "high"
+                  actions:
+                    - kind: SendActivity
+                      id: sendMsg_bsWrn
+                      activity: |-
+                        This statement has flagged issues that may need attention. Items with medium or low confidence may have extraction errors, missing values, or ambiguous formatting.
+
+            - kind: AdaptiveCardPrompt
+              id: acPrompt_bs7Kq
+              card:
+                kind: AdaptiveCardTemplate
+                cardContent: |-
+                  {
+                    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                    "type": "AdaptiveCard",
+                    "version": "1.5",
+                    "body": [
+                      {
+                        "type": "TextBlock",
+                        "text": "Balance Sheet Review",
+                        "weight": "Bolder",
+                        "size": "Large",
+                        "wrap": true
+                      },
+                      {
+                        "type": "FactSet",
+                        "facts": [
+                          { "title": "Confidence:", "value": "{Topic.bs_confidence}" },
+                          { "title": "Flagged Rows:", "value": "{Topic.bs_flag_count}" }
+                        ]
+                      },
+                      {
+                        "type": "TextBlock",
+                        "text": "Review the balance sheet data and proceed when ready.",
+                        "wrap": true,
+                        "spacing": "Medium"
+                      }
+                    ],
+                    "actions": [
+                      {
+                        "type": "Action.Submit",
+                        "title": "Next \u2192 Income Statement",
+                        "data": {
+                          "action": "next"
+                        }
+                      }
+                    ]
+                  }
+              output:
+                binding:
+                  action: Topic.wizard_action
+              outputType:
+                properties:
+                  action:
+                    displayName: action
+                    type: String
+
+            - kind: SetVariable
+              id: setVar_step2x
+              variable: Topic.current_step
+              value: =2
+
+    # ──────────────────────────────────────────────
+    # Wizard Step 2: Income Statement
+    # ──────────────────────────────────────────────
+    - kind: ConditionGroup
+      id: condGrp_is8Nm3
+      conditions:
+        - id: condItem_is2Rv
+          condition: =Topic.current_step = 2
+          actions:
+            - kind: SendActivity
+              id: sendMsg_isHdr
+              activity: |-
+                **Step 2 of 3: Income Statement**
+                Confidence: {Topic.is_confidence} | Flagged rows: {Topic.is_flag_count}
+
+            - kind: ConditionGroup
+              id: condGrp_isFlg
+              conditions:
+                - id: condItem_isLow
+                  condition: =Topic.is_confidence <> "high"
+                  actions:
+                    - kind: SendActivity
+                      id: sendMsg_isWrn
+                      activity: |-
+                        This statement has flagged issues that may need attention. Items with medium or low confidence may have extraction errors, missing values, or ambiguous formatting.
+
+            - kind: AdaptiveCardPrompt
+              id: acPrompt_is3Wz
+              card:
+                kind: AdaptiveCardTemplate
+                cardContent: |-
+                  {
+                    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                    "type": "AdaptiveCard",
+                    "version": "1.5",
+                    "body": [
+                      {
+                        "type": "TextBlock",
+                        "text": "Income Statement Review",
+                        "weight": "Bolder",
+                        "size": "Large",
+                        "wrap": true
+                      },
+                      {
+                        "type": "FactSet",
+                        "facts": [
+                          { "title": "Confidence:", "value": "{Topic.is_confidence}" },
+                          { "title": "Flagged Rows:", "value": "{Topic.is_flag_count}" }
+                        ]
+                      },
+                      {
+                        "type": "TextBlock",
+                        "text": "Review the income statement data and proceed when ready.",
+                        "wrap": true,
+                        "spacing": "Medium"
+                      }
+                    ],
+                    "actions": [
+                      {
+                        "type": "Action.Submit",
+                        "title": "\u2190 Previous",
+                        "data": {
+                          "action": "previous"
+                        }
+                      },
+                      {
+                        "type": "Action.Submit",
+                        "title": "Next \u2192 Cash Flow",
+                        "data": {
+                          "action": "next"
+                        }
+                      }
+                    ]
+                  }
+              output:
+                binding:
+                  action: Topic.wizard_action
+              outputType:
+                properties:
+                  action:
+                    displayName: action
+                    type: String
+
+            - kind: ConditionGroup
+              id: condGrp_isNav
+              conditions:
+                - id: condItem_isPrev
+                  condition: =Topic.wizard_action = "previous"
+                  actions:
+                    - kind: ReplaceDialog
+                      id: repDlg_isPrev
+                      dialog: cree1_FinanceStatementAnalysisAgent.topic.HITLReview
+                      input:
+                        kind: ActionInputBinding
+                        binding:
+                          job_id: =Topic.job_id
+                          confidence: =Topic.confidence
+                          balance_sheet: =Topic.balance_sheet
+                          income_statement: =Topic.income_statement
+                          cash_flow: =Topic.cash_flow
+                          summary: =Topic.summary
+                          company_name: =Topic.company_name
+                          current_step_override: ="1"
+
+              elseActions:
+                - kind: SetVariable
+                  id: setVar_step3x
+                  variable: Topic.current_step
+                  value: =3
+
+    # ──────────────────────────────────────────────
+    # Wizard Step 3: Cash Flow
+    # ──────────────────────────────────────────────
+    - kind: ConditionGroup
+      id: condGrp_cf2Rp4
+      conditions:
+        - id: condItem_cf3Rv
+          condition: =Topic.current_step = 3
+          actions:
+            - kind: SendActivity
+              id: sendMsg_cfHdr
+              activity: |-
+                **Step 3 of 3: Cash Flow Statement**
+                Confidence: {Topic.cf_confidence} | Flagged rows: {Topic.cf_flag_count}
+
+            - kind: ConditionGroup
+              id: condGrp_cfFlg
+              conditions:
+                - id: condItem_cfLow
+                  condition: =Topic.cf_confidence <> "high"
+                  actions:
+                    - kind: SendActivity
+                      id: sendMsg_cfWrn
+                      activity: |-
+                        This statement has flagged issues that may need attention. Items with medium or low confidence may have extraction errors, missing values, or ambiguous formatting.
+
+            - kind: AdaptiveCardPrompt
+              id: acPrompt_cf9Tx
+              card:
+                kind: AdaptiveCardTemplate
+                cardContent: |-
+                  {
+                    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                    "type": "AdaptiveCard",
+                    "version": "1.5",
+                    "body": [
+                      {
+                        "type": "TextBlock",
+                        "text": "Cash Flow Statement Review",
+                        "weight": "Bolder",
+                        "size": "Large",
+                        "wrap": true
+                      },
+                      {
+                        "type": "FactSet",
+                        "facts": [
+                          { "title": "Confidence:", "value": "{Topic.cf_confidence}" },
+                          { "title": "Flagged Rows:", "value": "{Topic.cf_flag_count}" }
+                        ]
+                      },
+                      {
+                        "type": "TextBlock",
+                        "text": "Review the cash flow data. When ready, submit to generate the Excel report.",
+                        "wrap": true,
+                        "spacing": "Medium"
+                      }
+                    ],
+                    "actions": [
+                      {
+                        "type": "Action.Submit",
+                        "title": "\u2190 Previous",
+                        "data": {
+                          "action": "previous"
+                        }
+                      },
+                      {
+                        "type": "Action.Submit",
+                        "title": "Submit & Generate Excel",
+                        "data": {
+                          "action": "submit"
+                        }
+                      }
+                    ]
+                  }
+              output:
+                binding:
+                  action: Topic.wizard_action
+              outputType:
+                properties:
+                  action:
+                    displayName: action
+                    type: String
+
+            - kind: ConditionGroup
+              id: condGrp_cfNav
+              conditions:
+                - id: condItem_cfPrev
+                  condition: =Topic.wizard_action = "previous"
+                  actions:
+                    - kind: ReplaceDialog
+                      id: repDlg_cfPrev
+                      dialog: cree1_FinanceStatementAnalysisAgent.topic.HITLReview
+                      input:
+                        kind: ActionInputBinding
+                        binding:
+                          job_id: =Topic.job_id
+                          confidence: =Topic.confidence
+                          balance_sheet: =Topic.balance_sheet
+                          income_statement: =Topic.income_statement
+                          cash_flow: =Topic.cash_flow
+                          summary: =Topic.summary
+                          company_name: =Topic.company_name
+                          current_step_override: ="2"
+
+              elseActions:
+                # Submit: Generate Excel
+                - kind: SendActivity
+                  id: sendMsg_genXl
+                  activity: Review complete. Generating your Excel report now...
+
+                - kind: BeginDialog
+                  id: beginDlg_genXl
+                  dialog: cree1_FinanceStatementAnalysisAgent.action.FinanceStatementProcessor
+                  input:
+                    kind: ActionInputBinding
+                    binding:
+                      balance_sheet: =Topic.balance_sheet
+                      income_statement: =Topic.income_statement
+                      cash_flow: =Topic.cash_flow
+                      summary: =Topic.summary
+                      company_name: =Topic.company_name
+                  output:
+                    kind: ActionOutputBinding
+                    binding:
+                      fileurl: Topic.fileurl
+                      filename: Topic.filename
+
+                - kind: SendActivity
+                  id: sendMsg_dlRdy
+                  activity: |-
+                    Your report is ready: [{Topic.filename}]({Topic.fileurl})
+
+inputType:
+  properties:
+    job_id:
+      displayName: Job ID
+      description: Unique identifier for the extraction job
+      type: String
+
+    confidence:
+      displayName: Confidence JSON
+      description: JSON string with confidence levels and flagged rows for each statement
+      type: String
+
+    balance_sheet:
+      displayName: Balance Sheet
+      description: Extracted balance sheet JSON data
+      type: String
+
+    income_statement:
+      displayName: Income Statement
+      description: Extracted income statement JSON data
+      type: String
+
+    cash_flow:
+      displayName: Cash Flow
+      description: Extracted cash flow JSON data
+      type: String
+
+    summary:
+      displayName: Summary
+      description: Financial summary with key metrics
+      type: String
+
+    company_name:
+      displayName: Company Name
+      description: The company name extracted from the financial report
+      type: String
+
+    current_step_override:
+      displayName: Current Step Override
+      description: Used internally when navigating back to a previous step via ReplaceDialog
+      type: String
