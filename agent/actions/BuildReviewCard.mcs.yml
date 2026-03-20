@@ -1,0 +1,49 @@
+# Name: Build Review Card
+# Description: Calls the backend API to build a dynamic Adaptive Card for HITL review
+kind: TaskDialog
+inputs:
+  - kind: AutomaticTaskInput
+    propertyName: job_id
+    description: The extraction job ID to build the review card for.
+
+  - kind: AutomaticTaskInput
+    propertyName: card_type
+    description: The type of card to build - either "navigator" or "statement".
+
+  - kind: AutomaticTaskInput
+    propertyName: statement_type
+    description: The statement type - "balance_sheet", "income_statement", or "cash_flow".
+
+  - kind: AutomaticTaskInput
+    propertyName: step_num
+    description: The current wizard step number (as a string).
+
+  - kind: AutomaticTaskInput
+    propertyName: total_steps
+    description: The total number of wizard steps (as a string).
+
+  - kind: AutomaticTaskInput
+    propertyName: editable
+    description: Whether the card fields should be editable - "true" or "false".
+
+  - kind: AutomaticTaskInput
+    propertyName: corrections
+    description: JSON string of corrections for pre-population of editable fields.
+
+modelDisplayName: Build review card
+modelDescription: >-
+  Builds a dynamic Adaptive Card for the human-in-the-loop financial statement review wizard.
+  Takes a job ID, card type (navigator or statement), statement type, step info, and existing
+  corrections, and returns the Adaptive Card JSON to display to the analyst.
+outputs:
+  - propertyName: card_json
+    description: The Adaptive Card JSON string to display in the review wizard.
+
+action:
+  kind: InvokeConnectorTaskAction
+  connectionReference: cree1_FinanceStatementAnalysisAgent.shared_financials-20extractor-5f60bfe6cc042375d2-5f547557861498fd2f.4854621a0b0a42ae811068346c539840
+  connectionProperties:
+    mode: Invoker
+  operationId: buildReviewCard
+
+outputMode: All

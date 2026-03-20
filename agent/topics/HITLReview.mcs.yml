@@ -130,23 +130,26 @@ beginDialog:
         - id: condItem_navShow
           condition: =Topic.current_step = 0
           actions:
-            # Call /api/build-review-card for navigator
-            - kind: HttpRequestAction
-              id: http_navCard7x
-              method: Post
-              url: =Global.ApiBaseUrl & "/api/build-review-card"
-              headers:
-                Content-Type: application/json
-              body:
-                kind: JsonRequestContent
-                content: '={ job_id: Topic.job_id, card_type: "navigator", step_num: 0, total_steps: Topic.total_steps, editable: false, corrections: ParseJSON("{}") }'
-              response: Topic.navigator_card_json
-              errorHandling:
-                kind: ContinueOnErrorBehavior
-                statusCode: Topic.http_status_code
-                errorResponseBody: Topic.http_error_body
+            # Call BuildReviewCard action for navigator
+            - kind: BeginDialog
+              id: beginDlg_navCard7x
+              dialog: cree1_FinanceStatementAnalysisAgent.action.BuildReviewCard
+              input:
+                kind: ActionInputBinding
+                binding:
+                  job_id: =Topic.job_id
+                  card_type: ="navigator"
+                  statement_type: =""
+                  step_num: ="0"
+                  total_steps: =Text(Topic.total_steps)
+                  editable: ="false"
+                  corrections: ="{}"
+              output:
+                kind: ActionOutputBinding
+                binding:
+                  card_json: Topic.navigator_card_json
 
-            # Check for HTTP error
+            # Check for error
             - kind: ConditionGroup
               id: condGrp_navErr
               conditions:
@@ -155,8 +158,7 @@ beginDialog:
                   actions:
                     - kind: SendActivity
                       id: sendMsg_navErr
-                      activity: |-
-                        Something went wrong loading the review navigator. Error: {Topic.http_error_body}
+                      activity: Something went wrong loading the review navigator.
                     - kind: EndDialog
                       id: endDlg_navErr
               elseActions: []
@@ -250,21 +252,24 @@ beginDialog:
                   variable: init:Topic.current_step_num
                   value: =1
 
-                # Call /api/build-review-card for balance sheet
-                - kind: HttpRequestAction
-                  id: http_bsCard3v
-                  method: Post
-                  url: =Global.ApiBaseUrl & "/api/build-review-card"
-                  headers:
-                    Content-Type: application/json
-                  body:
-                    kind: JsonRequestContent
-                    content: '={ job_id: Topic.job_id, card_type: "statement", statement_type: "balance_sheet", step_num: Topic.current_step_num, total_steps: Topic.total_steps, editable: Topic.current_editable, corrections: ParseJSON(Topic.bs_corrections) }'
-                  response: Topic.statement_card_json
-                  errorHandling:
-                    kind: ContinueOnErrorBehavior
-                    statusCode: Topic.http_status_code
-                    errorResponseBody: Topic.http_error_body
+                # Call BuildReviewCard action for balance sheet
+                - kind: BeginDialog
+                  id: beginDlg_bsCard3v
+                  dialog: cree1_FinanceStatementAnalysisAgent.action.BuildReviewCard
+                  input:
+                    kind: ActionInputBinding
+                    binding:
+                      job_id: =Topic.job_id
+                      card_type: ="statement"
+                      statement_type: ="balance_sheet"
+                      step_num: =Text(Topic.current_step_num)
+                      total_steps: =Text(Topic.total_steps)
+                      editable: =If(Topic.current_editable, "true", "false")
+                      corrections: =Topic.bs_corrections
+                  output:
+                    kind: ActionOutputBinding
+                    binding:
+                      card_json: Topic.statement_card_json
 
                 - kind: ConditionGroup
                   id: condGrp_bsCardErr
@@ -274,8 +279,7 @@ beginDialog:
                       actions:
                         - kind: SendActivity
                           id: sendMsg_bsErr
-                          activity: |-
-                            Failed to load the balance sheet review card. Error: {Topic.http_error_body}
+                          activity: Failed to load the balance sheet review card.
                         - kind: EndDialog
                           id: endDlg_bsErr
                   elseActions: []
@@ -293,37 +297,21 @@ beginDialog:
                         displayName: Card Response
                         type: String
 
-                # Parse the card submission via API
-                - kind: HttpRequestAction
-                  id: http_bsParse5w
-                  method: Post
-                  url: =Global.ApiBaseUrl & "/api/parse-card-submission"
-                  headers:
-                    Content-Type: application/json
-                  body:
-                    kind: JsonRequestContent
-                    content: '={ job_id: Topic.job_id, statement_type: "balance_sheet", payload: ParseJSON(Topic.card_response) }'
-                  response: Topic.parse_response
-                  errorHandling:
-                    kind: ContinueOnErrorBehavior
-                    statusCode: Topic.http_status_code
-                    errorResponseBody: Topic.http_error_body
-
-                # Extract action and corrections from parse response
-                - kind: SetVariable
-                  id: setVar_bsParsed
-                  variable: init:Topic.parsed_result
-                  value: =ParseJSON(Topic.parse_response)
-
-                - kind: SetVariable
-                  id: setVar_bsStoreCorr
-                  variable: Topic.bs_corrections
-                  value: =Text(JSON(Topic.parsed_result.corrections))
-
-                - kind: SetVariable
-                  id: setVar_bsAction
-                  variable: init:Topic.current_action
-                  value: =Text(Topic.parsed_result.action)
+                # Parse the card submission via ParseCardSubmission action
+                - kind: BeginDialog
+                  id: beginDlg_bsParse5w
+                  dialog: cree1_FinanceStatementAnalysisAgent.action.ParseCardSubmission
+                  input:
+                    kind: ActionInputBinding
+                    binding:
+                      job_id: =Topic.job_id
+                      statement_type: ="balance_sheet"
+                      payload: =Topic.card_response
+                  output:
+                    kind: ActionOutputBinding
+                    binding:
+                      action: Topic.current_action
+                      corrections: Topic.bs_corrections
 
                 # Handle actions: next, submit, edit
                 - kind: ConditionGroup
@@ -400,21 +388,24 @@ beginDialog:
                   variable: Topic.current_step_num
                   value: =If(Topic.bs_exists, 2, 1)
 
-                # Call /api/build-review-card for income statement
-                - kind: HttpRequestAction
-                  id: http_isCard6t
-                  method: Post
-                  url: =Global.ApiBaseUrl & "/api/build-review-card"
-                  headers:
-                    Content-Type: application/json
-                  body:
-                    kind: JsonRequestContent
-                    content: '={ job_id: Topic.job_id, card_type: "statement", statement_type: "income_statement", step_num: Topic.current_step_num, total_steps: Topic.total_steps, editable: Topic.current_editable, corrections: ParseJSON(Topic.is_corrections) }'
-                  response: Topic.statement_card_json
-                  errorHandling:
-                    kind: ContinueOnErrorBehavior
-                    statusCode: Topic.http_status_code
-                    errorResponseBody: Topic.http_error_body
+                # Call BuildReviewCard action for income statement
+                - kind: BeginDialog
+                  id: beginDlg_isCard6t
+                  dialog: cree1_FinanceStatementAnalysisAgent.action.BuildReviewCard
+                  input:
+                    kind: ActionInputBinding
+                    binding:
+                      job_id: =Topic.job_id
+                      card_type: ="statement"
+                      statement_type: ="income_statement"
+                      step_num: =Text(Topic.current_step_num)
+                      total_steps: =Text(Topic.total_steps)
+                      editable: =If(Topic.current_editable, "true", "false")
+                      corrections: =Topic.is_corrections
+                  output:
+                    kind: ActionOutputBinding
+                    binding:
+                      card_json: Topic.statement_card_json
 
                 - kind: ConditionGroup
                   id: condGrp_isCardErr
@@ -424,8 +415,7 @@ beginDialog:
                       actions:
                         - kind: SendActivity
                           id: sendMsg_isErr
-                          activity: |-
-                            Failed to load the income statement review card. Error: {Topic.http_error_body}
+                          activity: Failed to load the income statement review card.
                         - kind: EndDialog
                           id: endDlg_isErr
                   elseActions: []
@@ -443,36 +433,21 @@ beginDialog:
                         displayName: Card Response
                         type: String
 
-                # Parse the card submission via API
-                - kind: HttpRequestAction
-                  id: http_isParse8r
-                  method: Post
-                  url: =Global.ApiBaseUrl & "/api/parse-card-submission"
-                  headers:
-                    Content-Type: application/json
-                  body:
-                    kind: JsonRequestContent
-                    content: '={ job_id: Topic.job_id, statement_type: "income_statement", payload: ParseJSON(Topic.card_response) }'
-                  response: Topic.parse_response
-                  errorHandling:
-                    kind: ContinueOnErrorBehavior
-                    statusCode: Topic.http_status_code
-                    errorResponseBody: Topic.http_error_body
-
-                - kind: SetVariable
-                  id: setVar_isParsed
-                  variable: Topic.parsed_result
-                  value: =ParseJSON(Topic.parse_response)
-
-                - kind: SetVariable
-                  id: setVar_isStoreCorr
-                  variable: Topic.is_corrections
-                  value: =Text(JSON(Topic.parsed_result.corrections))
-
-                - kind: SetVariable
-                  id: setVar_isAction
-                  variable: Topic.current_action
-                  value: =Text(Topic.parsed_result.action)
+                # Parse the card submission via ParseCardSubmission action
+                - kind: BeginDialog
+                  id: beginDlg_isParse8r
+                  dialog: cree1_FinanceStatementAnalysisAgent.action.ParseCardSubmission
+                  input:
+                    kind: ActionInputBinding
+                    binding:
+                      job_id: =Topic.job_id
+                      statement_type: ="income_statement"
+                      payload: =Topic.card_response
+                  output:
+                    kind: ActionOutputBinding
+                    binding:
+                      action: Topic.current_action
+                      corrections: Topic.is_corrections
 
                 # Handle actions: next, previous, submit, edit
                 - kind: ConditionGroup
@@ -570,21 +545,24 @@ beginDialog:
                   variable: Topic.current_step_num
                   value: =If(Topic.bs_exists, 1, 0) + If(Topic.is_exists, 1, 0) + 1
 
-                # Call /api/build-review-card for cash flow
-                - kind: HttpRequestAction
-                  id: http_cfCard2m
-                  method: Post
-                  url: =Global.ApiBaseUrl & "/api/build-review-card"
-                  headers:
-                    Content-Type: application/json
-                  body:
-                    kind: JsonRequestContent
-                    content: '={ job_id: Topic.job_id, card_type: "statement", statement_type: "cash_flow", step_num: Topic.current_step_num, total_steps: Topic.total_steps, editable: Topic.current_editable, corrections: ParseJSON(Topic.cf_corrections) }'
-                  response: Topic.statement_card_json
-                  errorHandling:
-                    kind: ContinueOnErrorBehavior
-                    statusCode: Topic.http_status_code
-                    errorResponseBody: Topic.http_error_body
+                # Call BuildReviewCard action for cash flow
+                - kind: BeginDialog
+                  id: beginDlg_cfCard2m
+                  dialog: cree1_FinanceStatementAnalysisAgent.action.BuildReviewCard
+                  input:
+                    kind: ActionInputBinding
+                    binding:
+                      job_id: =Topic.job_id
+                      card_type: ="statement"
+                      statement_type: ="cash_flow"
+                      step_num: =Text(Topic.current_step_num)
+                      total_steps: =Text(Topic.total_steps)
+                      editable: =If(Topic.current_editable, "true", "false")
+                      corrections: =Topic.cf_corrections
+                  output:
+                    kind: ActionOutputBinding
+                    binding:
+                      card_json: Topic.statement_card_json
 
                 - kind: ConditionGroup
                   id: condGrp_cfCardErr
@@ -594,8 +572,7 @@ beginDialog:
                       actions:
                         - kind: SendActivity
                           id: sendMsg_cfErr
-                          activity: |-
-                            Failed to load the cash flow review card. Error: {Topic.http_error_body}
+                          activity: Failed to load the cash flow review card.
                         - kind: EndDialog
                           id: endDlg_cfErr
                   elseActions: []
@@ -613,36 +590,21 @@ beginDialog:
                         displayName: Card Response
                         type: String
 
-                # Parse the card submission via API
-                - kind: HttpRequestAction
-                  id: http_cfParse4n
-                  method: Post
-                  url: =Global.ApiBaseUrl & "/api/parse-card-submission"
-                  headers:
-                    Content-Type: application/json
-                  body:
-                    kind: JsonRequestContent
-                    content: '={ job_id: Topic.job_id, statement_type: "cash_flow", payload: ParseJSON(Topic.card_response) }'
-                  response: Topic.parse_response
-                  errorHandling:
-                    kind: ContinueOnErrorBehavior
-                    statusCode: Topic.http_status_code
-                    errorResponseBody: Topic.http_error_body
-
-                - kind: SetVariable
-                  id: setVar_cfParsed
-                  variable: Topic.parsed_result
-                  value: =ParseJSON(Topic.parse_response)
-
-                - kind: SetVariable
-                  id: setVar_cfStoreCorr
-                  variable: Topic.cf_corrections
-                  value: =Text(JSON(Topic.parsed_result.corrections))
-
-                - kind: SetVariable
-                  id: setVar_cfAction
-                  variable: Topic.current_action
-                  value: =Text(Topic.parsed_result.action)
+                # Parse the card submission via ParseCardSubmission action
+                - kind: BeginDialog
+                  id: beginDlg_cfParse4n
+                  dialog: cree1_FinanceStatementAnalysisAgent.action.ParseCardSubmission
+                  input:
+                    kind: ActionInputBinding
+                    binding:
+                      job_id: =Topic.job_id
+                      statement_type: ="cash_flow"
+                      payload: =Topic.card_response
+                  output:
+                    kind: ActionOutputBinding
+                    binding:
+                      action: Topic.current_action
+                      corrections: Topic.cf_corrections
 
                 # Handle actions: previous, submit, edit
                 - kind: ConditionGroup
@@ -718,66 +680,41 @@ beginDialog:
               id: sendMsg_genXl
               activity: Review complete. Applying corrections and generating your Excel report...
 
-            # Call /api/apply-corrections
-            - kind: HttpRequestAction
-              id: http_applyCorr9k
-              method: Post
-              url: =Global.ApiBaseUrl & "/api/apply-corrections"
-              headers:
-                Content-Type: application/json
-              body:
-                kind: JsonRequestContent
-                content: '={ job_id: Topic.job_id, corrections: ParseJSON(Concatenate("{""balance_sheet"":", Topic.bs_corrections, ",""income_statement"":", Topic.is_corrections, ",""cash_flow"":", Topic.cf_corrections, "}")) }'
-              response: Topic.corrected_response
-              errorHandling:
-                kind: ContinueOnErrorBehavior
-                statusCode: Topic.http_status_code
-                errorResponseBody: Topic.http_error_body
+            # Call ApplyCorrections action
+            - kind: SetVariable
+              id: setVar_allCorr
+              variable: init:Topic.all_corrections
+              value: =Concatenate("{""balance_sheet"":", Topic.bs_corrections, ",""income_statement"":", Topic.is_corrections, ",""cash_flow"":", Topic.cf_corrections, "}")
+
+            - kind: BeginDialog
+              id: beginDlg_applyCorr9k
+              dialog: cree1_FinanceStatementAnalysisAgent.action.ApplyCorrections
+              input:
+                kind: ActionInputBinding
+                binding:
+                  job_id: =Topic.job_id
+                  corrections: =Topic.all_corrections
+              output:
+                kind: ActionOutputBinding
+                binding:
+                  balance_sheet: Topic.corrected_balance_sheet
+                  income_statement: Topic.corrected_income_statement
+                  cash_flow: Topic.corrected_cash_flow
+                  summary: Topic.corrected_summary
+                  company_name: Topic.corrected_company_name
 
             - kind: ConditionGroup
               id: condGrp_corrErr
               conditions:
                 - id: condItem_corrHttpErr
-                  condition: =IsBlank(Topic.corrected_response)
+                  condition: =IsBlank(Topic.corrected_balance_sheet)
                   actions:
                     - kind: SendActivity
                       id: sendMsg_corrErr
-                      activity: |-
-                        Failed to apply corrections. Error: {Topic.http_error_body}
+                      activity: Failed to apply corrections.
                     - kind: EndDialog
                       id: endDlg_corrErr
               elseActions: []
-
-            # Parse corrected response
-            - kind: SetVariable
-              id: setVar_corrParsed
-              variable: init:Topic.corrected_data
-              value: =ParseJSON(Topic.corrected_response)
-
-            - kind: SetVariable
-              id: setVar_corrBs
-              variable: init:Topic.corrected_balance_sheet
-              value: =Text(Topic.corrected_data.balance_sheet)
-
-            - kind: SetVariable
-              id: setVar_corrIs
-              variable: init:Topic.corrected_income_statement
-              value: =Text(Topic.corrected_data.income_statement)
-
-            - kind: SetVariable
-              id: setVar_corrCf
-              variable: init:Topic.corrected_cash_flow
-              value: =Text(Topic.corrected_data.cash_flow)
-
-            - kind: SetVariable
-              id: setVar_corrSummary
-              variable: init:Topic.corrected_summary
-              value: =Text(Topic.corrected_data.summary)
-
-            - kind: SetVariable
-              id: setVar_corrCompany
-              variable: init:Topic.corrected_company_name
-              value: =Text(Topic.corrected_data.company_name)
 
             # Pass corrected data to FinanceStatementProcessor for Excel
             - kind: BeginDialog

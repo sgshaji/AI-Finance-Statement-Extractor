@@ -1,9 +1,0 @@
-# Name: API Base URL
-# Base URL for the Financial Statement Extraction API (Azure Function)
-name: ApiBaseUrl
-aIVisibility: Hidden
-scope: Conversation
-description: Base URL for the Financial Statement Extraction API endpoints (e.g. https://your-function-app.azurewebsites.net)
-schemaName: cree1_FinanceStatementAnalysisAgent.globalvariable.ApiBaseUrl
-kind: GlobalVariableComponent
-defaultValue: https://TO_BE_SET.azurewebsites.net

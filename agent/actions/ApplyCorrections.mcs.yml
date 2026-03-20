@@ -1,0 +1,41 @@
+# Name: Apply Corrections
+# Description: Applies analyst corrections to extracted financial data and returns corrected statements
+kind: TaskDialog
+inputs:
+  - kind: AutomaticTaskInput
+    propertyName: job_id
+    description: The extraction job ID to apply corrections for.
+
+  - kind: AutomaticTaskInput
+    propertyName: corrections
+    description: JSON string of all corrections across all statements to apply.
+
+modelDisplayName: Apply corrections
+modelDescription: >-
+  Applies analyst corrections from the HITL review wizard to the extracted financial statement data.
+  Takes the job ID and a consolidated JSON of corrections, and returns the corrected balance sheet,
+  income statement, cash flow, summary, and company name ready for Excel report generation.
+outputs:
+  - propertyName: balance_sheet
+    description: Corrected balance sheet JSON data.
+
+  - propertyName: income_statement
+    description: Corrected income statement JSON data.
+
+  - propertyName: cash_flow
+    description: Corrected cash flow JSON data.
+
+  - propertyName: summary
+    description: Corrected financial summary with key metrics.
+
+  - propertyName: company_name
+    description: The company name from the financial report.
+
+action:
+  kind: InvokeConnectorTaskAction
+  connectionReference: cree1_FinanceStatementAnalysisAgent.shared_financials-20extractor-5f60bfe6cc042375d2-5f547557861498fd2f.4854621a0b0a42ae811068346c539840
+  connectionProperties:
+    mode: Invoker
+  operationId: applyCorrections
+
+outputMode: All
