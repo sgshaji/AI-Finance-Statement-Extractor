@@ -1,0 +1,93 @@
+kind: AdaptiveDialog
+modelDescription: This topic handles the data extraction from the user provided finance statement
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main
+  intent: {}
+  actions:
+    - kind: SendActivity
+      id: sendActivity_hrvee2
+      activity: Processing your financial report. This may take up to a minute...
+
+    - kind: BeginDialog
+      id: cLd1Cl
+      input:
+        binding:
+          file: =First(System.Activity.Attachments).Value
+          fileName: =First(System.Activity.Attachments).Name
+      dialog: cree1_FinanceStatementAnalysisAgent.action.FinancialExtractor-SubmitaPDFforfinancialstatementextract
+      output:
+        binding:
+          jobId: Topic.jobId
+          status: Topic.status
+
+    - kind: SetVariable
+      id: setVar_globalJobId
+      variable: Global.job_id
+      value: =Topic.jobId
+
+    - kind: SendActivity
+      id: sendActivity_SVgxmt
+      activity: "Job ID: {Topic.jobId}"
+
+    - kind: ConditionGroup
+      id: conditionGroup_nyVCKS
+      conditions:
+        - id: conditionItem_JWPXNA
+          condition: =Topic.status = "processing"
+          actions:
+            - kind: SendActivity
+              id: sendActivity_rRvZvZ
+              activity: Still extracting, please wait...
+
+            - kind: InvokeFlowAction
+              id: invokeFlowAction_UUkn6v
+              input: {}
+              output: {}
+              flowId: 8997e33f-5c86-55cd-708c-8818dff10d9e
+
+            - kind: BeginDialog
+              id: beginDialog_poll
+              input:
+                binding:
+                  jobId: =Topic.jobId
+              dialog: cree1_FinanceStatementAnalysisAgent.action.FinancialExtractor-Pollforextractionresults
+              output:
+                binding:
+                  balance_sheet: Global.balance_sheet
+                  cash_flow: Global.cash_flow
+                  company_name: Global.company_name
+                  confidence: Global.confidence
+                  income_statement: Global.income_statement
+                  status: Topic.status
+                  summary: Global.summary
+
+            - kind: GotoAction
+              id: goto_pollLoop
+              actionId: conditionGroup_nyVCKS
+
+    - kind: ConditionGroup
+      id: conditionGroup_checkFail
+      conditions:
+        - id: conditionItem_failed
+          condition: =Topic.status = "failed"
+          actions:
+            - kind: SendActivity
+              id: sendActivity_failed
+              activity: Extraction failed. Please try uploading the file again.
+            - kind: EndDialog
+              id: endDialog_failed
+
+    - kind: SendActivity
+      id: sendActivity_results
+      activity: "Extraction complete for **{Global.company_name}**. Launching review..."
+
+    - kind: BeginDialog
+      id: beginDlg_hitlReview
+      dialog: cree1_FinanceStatementAnalysisAgent.topic.HITLReview
+
+    - kind: CancelAllDialogs
+      id: e8MfIK
+
+inputType: {}
+outputType: {}

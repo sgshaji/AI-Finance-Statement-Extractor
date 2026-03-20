@@ -1,11 +1,10 @@
 # Credentials — never commit these
 .env
+local.settings.json
 
-# Azure CU raw response — large file, cached locally only
-output/raw_result.json
-
-# Generated output files
-output/
+# Generated output files (service pipeline outputs)
+service/output/
+service/output_v2/
 
 # Python
 __pycache__/
@@ -16,3 +15,13 @@ venv/
 *.egg-info/
 dist/
 build/
+.python_packages
+
+# Azure Functions
+.python_packages
+
+# Copilot Studio internal metadata
+agent/.mcs/
+
+# IDE
+.vscode/

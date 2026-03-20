@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Finance Statement Analysis Agent - Architecture</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', sans-serif; background: #0d1117; padding: 40px 20px; color: #c9d1d9; }
+  h1 { text-align: center; color: #fff; font-size: 22px; font-weight: 600; margin-bottom: 4px; }
+  .subtitle { text-align: center; color: #8b949e; font-size: 12px; margin-bottom: 36px; }
+
+  .canvas {
+    max-width: 1200px;
+    margin: 0 auto;
+    position: relative;
+    display: grid;
+    grid-template-columns: 240px 1fr 240px;
+    grid-template-rows: auto auto auto;
+    gap: 20px;
+  }
+
+  /* Service boundary boxes */
+  .boundary {
+    border: 1.5px solid #30363d;
+    border-radius: 12px;
+    padding: 16px;
+    position: relative;
+    background: #161b22;
+  }
+  .boundary-label {
+    position: absolute;
+    top: -10px; left: 16px;
+    background: #161b22;
+    padding: 0 8px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
+
+  /* Component node */
+  .node {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: #21262d;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    transition: border-color 0.2s;
+  }
+  .node:last-child { margin-bottom: 0; }
+  .node:hover { border-color: #58a6ff; }
+  .node img { width: 32px; height: 32px; object-fit: contain; flex-shrink: 0; }
+  .node-text .name { font-size: 12px; font-weight: 600; color: #e6edf3; }
+  .node-text .role { font-size: 10px; color: #8b949e; }
+
+  /* Grid placement */
+  .user-zone { grid-column: 1; grid-row: 1 / 3; }
+  .copilot-zone { grid-column: 2; grid-row: 1; }
+  .azure-zone { grid-column: 2; grid-row: 2; }
+  .m365-zone { grid-column: 3; grid-row: 1 / 3; }
+  .review-zone { grid-column: 1 / 4; grid-row: 3; }
+
+  /* Inner grid for azure zone */
+  .azure-inner {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+  }
+
+  /* Review zone horizontal */
+  .review-inner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .review-inner .node { margin-bottom: 0; flex: 1; min-width: 180px; }
+  .review-arrow { color: #8b949e; font-size: 20px; flex-shrink: 0; }
+
+  /* Connection lines via SVG */
+  .connections {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Flow indicators */
+  .flow-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-left: 8px;
+  }
+
+  /* Legend */
+  .legend {
+    max-width: 1200px;
+    margin: 28px auto 0;
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    color: #8b949e;
+  }
+  .legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+
+  .note {
+    max-width: 1200px;
+    margin: 16px auto 0;
+    font-size: 10px;
+    color: #484f58;
+    text-align: center;
+  }
+
+  /* Color accents per boundary */
+  .user-zone { border-color: #3fb950; }
+  .user-zone .boundary-label { color: #3fb950; }
+  .copilot-zone { border-color: #58a6ff; }
+  .copilot-zone .boundary-label { color: #58a6ff; }
+  .azure-zone { border-color: #bc8cff; }
+  .azure-zone .boundary-label { color: #bc8cff; }
+  .m365-zone { border-color: #f0883e; }
+  .m365-zone .boundary-label { color: #f0883e; }
+  .review-zone { border-color: #f778ba; }
+  .review-zone .boundary-label { color: #f778ba; }
+</style>
+</head>
+<body>
+
+<h1>Finance Statement Analysis Agent</h1>
+<p class="subtitle">Solution Architecture</p>
+
+<div class="canvas">
+
+  <!-- User / Client -->
+  <div class="boundary user-zone">
+    <div class="boundary-label">Client</div>
+    <div class="node">
+      <img src="./icons/user.png" alt="User">
+      <div class="node-text">
+        <div class="name">End User</div>
+        <div class="role">Uploads PDF financial report</div>
+      </div>
+    </div>
+    <div class="node">
+      <img src="./icons/teams.png" alt="Chat">
+      <div class="node-text">
+        <div class="name">Chat Interface</div>
+        <div class="role">Teams / Web / Custom</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Copilot Studio / Power Platform -->
+  <div class="boundary copilot-zone">
+    <div class="boundary-label">Microsoft Copilot Studio</div>
+    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+      <div class="node" style="flex:1; min-width: 180px;">
+        <img src="./icons/copilot-studio.jpeg" alt="Copilot">
+        <div class="node-text">
+          <div class="name">Finance Statement Agent</div>
+          <div class="role">GPT-4.1 orchestrator</div>
+        </div>
+      </div>
+      <div class="node" style="flex:1; min-width: 180px;">
+        <img src="./icons/flow-chart.png" alt="Topic">
+        <div class="node-text">
+          <div class="name">Document Processor Topic</div>
+          <div class="role">Submit, poll, generate flow</div>
+        </div>
+      </div>
+      <div class="node" style="flex:1; min-width: 180px;">
+        <img src="./icons/api-settings.png" alt="Connector">
+        <div class="node-text">
+          <div class="name">Custom Connector</div>
+          <div class="role">Swagger 2.0 &middot; 2 operations</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Azure Services -->
+  <div class="boundary azure-zone">
+    <div class="boundary-label">Microsoft Azure</div>
+    <div class="azure-inner">
+      <div class="node">
+        <img src="./icons/azure-functions.png" alt="Functions">
+        <div class="node-text">
+          <div class="name">Azure Functions</div>
+          <div class="role">Python &middot; Async HTTP</div>
+        </div>
+      </div>
+      <div class="node">
+        <img src="./icons/azure-functions.png" alt="CU">
+        <div class="node-text">
+          <div class="name">Content Understanding</div>
+          <div class="role">Locator + Extractor models</div>
+        </div>
+      </div>
+      <div class="node">
+        <img src="./icons/azure-openai.png" alt="OpenAI">
+        <div class="node-text">
+          <div class="name">Azure OpenAI</div>
+          <div class="role">Label reconciliation</div>
+        </div>
+      </div>
+      <div class="node">
+        <img src="./icons/parse-clipboard.png" alt="Parser">
+        <div class="node-text">
+          <div class="name">Table Parser</div>
+          <div class="role">HTML &rarr; structured rows</div>
+        </div>
+      </div>
+      <div class="node">
+        <img src="./icons/json.png" alt="Mapper">
+        <div class="node-text">
+          <div class="name">Schema Mapper</div>
+          <div class="role">v1.2 JSON &middot; validation</div>
+        </div>
+      </div>
+      <div class="node">
+        <img src="./icons/azure-blob-storage.png" alt="Blob">
+        <div class="node-text">
+          <div class="name">Blob Storage</div>
+          <div class="role">Async job state</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Microsoft 365 -->
+  <div class="boundary m365-zone">
+    <div class="boundary-label">Microsoft 365</div>
+    <div class="node">
+      <img src="./icons/power-automate.jpeg" alt="PA">
+      <div class="node-text">
+        <div class="name">Power Automate</div>
+        <div class="role">Excel generation flow</div>
+      </div>
+    </div>
+    <div class="node">
+      <img src="./icons/excel.png" alt="Excel">
+      <div class="node-text">
+        <div class="name">Office Scripts</div>
+        <div class="role">4 formatted worksheets</div>
+      </div>
+    </div>
+    <div class="node">
+      <img src="./icons/sharepoint.png" alt="SP">
+      <div class="node-text">
+        <div class="name">SharePoint Online</div>
+        <div class="role">File storage &amp; sharing</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HIL Review -->
+  <div class="boundary review-zone">
+    <div class="boundary-label">Human-in-the-Loop Review</div>
+    <div class="review-inner">
+      <div class="node">
+        <img src="./icons/dataverse.jpeg" alt="Dataverse">
+        <div class="node-text">
+          <div class="name">Dataverse</div>
+          <div class="role">Extraction results stored</div>
+        </div>
+      </div>
+      <div class="review-arrow">&#10142;</div>
+      <div class="node">
+        <img src="./icons/power-apps.png" alt="Power Apps">
+        <div class="node-text">
+          <div class="name">Power Apps</div>
+          <div class="role">Review &amp; correction interface</div>
+        </div>
+      </div>
+      <div class="review-arrow">&#10142;</div>
+      <div class="node">
+        <img src="./icons/checkmark.png" alt="Approve">
+        <div class="node-text">
+          <div class="name">Human Reviewer</div>
+          <div class="role">Verify, correct, approve</div>
+        </div>
+      </div>
+      <div class="review-arrow">&#10142;</div>
+      <div class="node">
+        <img src="./icons/excel.png" alt="Excel">
+        <div class="node-text">
+          <div class="name">Excel Export</div>
+          <div class="role">Approved data &rarr; workbook</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Legend -->
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#3fb950"></div>Client Layer</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#58a6ff"></div>Copilot Studio</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#bc8cff"></div>Azure Services</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#f0883e"></div>Microsoft 365</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#f778ba"></div>Human Review</div>
+</div>
+
+<p class="note">
+  Data flow: User &#8594; Copilot Studio &#8594; Custom Connector &#8594; Azure Functions (async) &#8594; Copilot Studio &#8594; Power Automate &#8594; Excel &#8594; SharePoint
+  &nbsp;&middot;&nbsp; Async polling handles 30s connector timeout &nbsp;&middot;&nbsp; Multi-language (CN, JP, EN)
+</p>
+
+</body>
+</html>

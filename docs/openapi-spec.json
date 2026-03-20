@@ -1,0 +1,160 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Financial Statement Extractor",
+    "description": "Extracts Balance Sheet, Income Statement, and Cash Flow Statement from uploaded financial reports in any language. Returns structured, analytics-ready JSON.",
+    "version": "2.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://financial-statement-extractor.azurewebsites.net/api"
+    }
+  ],
+  "paths": {
+    "/extract": {
+      "post": {
+        "operationId": "extractFinancialStatements",
+        "summary": "Extract financial statements from a PDF document",
+        "description": "Accepts a file URL (from Copilot Studio file upload) and returns structured financial statement data in v1.2 schema format.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["fileUrl", "fileName"],
+                "properties": {
+                  "fileUrl": {
+                    "type": "string",
+                    "description": "URL to the uploaded PDF file"
+                  },
+                  "fileName": {
+                    "type": "string",
+                    "description": "Original file name of the uploaded PDF"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "enrichment",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "true",
+              "enum": ["true", "false"]
+            },
+            "description": "Set to false to skip canonical key enrichment (faster)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Extraction successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "summary": {
+                      "type": "string",
+                      "description": "JSON string containing the extraction summary with statement types, statuses, and company info"
+                    },
+                    "balance_sheet": {
+                      "type": "string",
+                      "description": "JSON string containing the extracted Balance Sheet data in v1.2 schema"
+                    },
+                    "income_statement": {
+                      "type": "string",
+                      "description": "JSON string containing the extracted Income Statement data in v1.2 schema"
+                    },
+                    "cash_flow": {
+                      "type": "string",
+                      "description": "JSON string containing the extracted Cash Flow Statement data in v1.2 schema"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - missing fileUrl or invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Processing error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "healthCheck",
+        "summary": "Health check",
+        "description": "Returns the service health status and version info.",
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string"
+                    },
+                    "schema_version": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "function_key": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "function_key": {
+        "type": "apiKey",
+        "name": "code",
+        "in": "query"
+      }
+    }
+  }
+}

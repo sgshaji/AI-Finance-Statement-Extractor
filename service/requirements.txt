@@ -1,3 +1,7 @@
+azure-functions
+azure-identity
+azure-storage-blob
 requests
 python-dotenv
 openai>=1.0
+pytest>=7.0

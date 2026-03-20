@@ -28,10 +28,13 @@ _POLL_INTERVAL_SECONDS = 3
 _MAX_POLL_ATTEMPTS = 60
 
 
-def submit_document(file_path: str) -> str:
+def submit_document(file_path: str) -> tuple[str | None, dict | None]:
     """
     POST the PDF to Azure Content Understanding.
-    Returns the operation-location URL for polling.
+
+    Returns a (operation_location, result) tuple:
+      - Async mode:  (url_string, None) — caller must poll the URL.
+      - Sync mode:   (None, result_dict) — result is already available.
     """
     with open(file_path, "rb") as f:
         data = f.read()

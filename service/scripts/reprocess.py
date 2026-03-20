@@ -39,7 +39,7 @@ def main(use_llm: bool = False) -> None:
     raw_result = json.loads(raw_path.read_text(encoding="utf-8"))
 
     # Re-run location detection and parsing
-    locations = locate_statements(raw_result)
+    locations = locate_statements(raw_result, use_llm=use_llm)
     for stype in STATEMENT_TYPES:
         stmt = build_statement_json(stype, raw_result, locations.get(stype), use_llm=use_llm)
         (OUTPUT_DIR / f"{stype}.json").write_text(
@@ -49,18 +49,11 @@ def main(use_llm: bool = False) -> None:
         json.dumps(build_summary(locations), indent=2, ensure_ascii=False), encoding="utf-8"
     )
 
-    # Print the cash flow statement as a quick visual check
-    cf = json.loads((OUTPUT_DIR / "cash_flow.json").read_text(encoding="utf-8"))
-    cells = cf["cells"]
-    grid: dict = {}
-    for c in cells:
-        grid.setdefault(c["row"], {})[c["col"]] = c["content"]
-
-    max_col = max(c["col"] for c in cells)
-    print(f"Cash Flow  pages {cf['start_page']}-{cf['end_page']}  ({len(grid)} rows)\n")
-    for r in sorted(grid):
-        row_vals = [grid[r].get(i, "") for i in range(max_col + 1)]
-        print(" | ".join(v[:60] for v in row_vals))
+    # Print a quick summary
+    for stype in STATEMENT_TYPES:
+        stmt = json.loads((OUTPUT_DIR / f"{stype}.json").read_text(encoding="utf-8"))
+        pr = stmt.get("page_range", {})
+        print(f"{stype}: {len(stmt['rows'])} rows, pages {pr.get('start')}-{pr.get('end')}")
 
 
 if __name__ == "__main__":

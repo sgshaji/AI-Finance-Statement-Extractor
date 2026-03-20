@@ -1,0 +1,1558 @@
+{
+  "schema_version": "1.2.0",
+  "document_metadata": {
+    "source_file_name": "Xiamen ITG Group Corp.,Ltd_QR_2025-09-30T00_00_00_Chinese.pdf",
+    "source_file_hash": null,
+    "company_name": "Xiamen C&D Corporation Limited",
+    "company_name_raw": "厦门国贸集团股份有限公司",
+    "report_type": "quarterly_report",
+    "report_language": "zh",
+    "source_country": null,
+    "source_exchange": null,
+    "ticker": null,
+    "identifier": null
+  },
+  "statement_metadata": {
+    "statement_type": "cash_flow",
+    "statement_title": "Consolidated Cash Flow Statement",
+    "statement_title_raw": "合并现金流量表",
+    "accounting_standard": "Chinese_ASBE",
+    "currency": "CNY",
+    "currency_symbol": "¥",
+    "unit": "ones",
+    "unit_raw": null,
+    "is_consolidated": true,
+    "is_audited": null,
+    "page_range": {
+      "start": null,
+      "end": null
+    },
+    "bbox_coordinate_system": "normalized_0_1"
+  },
+  "columns": [
+    {
+      "column_index": 0,
+      "label": "项目",
+      "label_raw": "项目",
+      "period_type": "other",
+      "fiscal_year": null,
+      "fiscal_quarter": null,
+      "start_date": null,
+      "end_date": null,
+      "is_comparative": false
+    },
+    {
+      "column_index": 1,
+      "label": "2025年前三季度 (1-9月)",
+      "label_raw": "2025年前三季度 (1-9月)",
+      "period_type": "nine_months",
+      "fiscal_year": 2025,
+      "fiscal_quarter": null,
+      "start_date": null,
+      "end_date": null,
+      "is_comparative": true
+    },
+    {
+      "column_index": 2,
+      "label": "2024年前三季度 (1-9月)",
+      "label_raw": "2024年前三季度 (1-9月)",
+      "period_type": "nine_months",
+      "fiscal_year": 2024,
+      "fiscal_quarter": null,
+      "start_date": null,
+      "end_date": null,
+      "is_comparative": true
+    }
+  ],
+  "rows": [
+    {
+      "row_index": 0,
+      "label_raw": "一、经营活动产生的现金流量:",
+      "label_normalized": "Cash flows from operating activities",
+      "label_language": "zh",
+      "canonical_key": "cash_flows_from_operating_activities",
+      "canonical_group": "operating_cash_flow",
+      "row_type": "section_header",
+      "indent_level": 0,
+      "section": "operating_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": null,
+          "normalized": null,
+          "is_null": true,
+          "is_zero": null,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": null,
+          "normalized": null,
+          "is_null": true,
+          "is_zero": null,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 1,
+      "label_raw": "销售商品、提供劳务收到的现金",
+      "label_normalized": "Cash received from sales of goods and rendering of services",
+      "label_language": "zh",
+      "canonical_key": "cash_received_from_sales_of_goods_and_services",
+      "canonical_group": "operating_cash_flow",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "operating_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "268,274,719,571.00",
+          "normalized": 268274719571.0,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "306,154,668,602.97",
+          "normalized": 306154668602.97,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 2,
+      "label_raw": "收到的税费返还",
+      "label_normalized": "Tax refunds received",
+      "label_language": "zh",
+      "canonical_key": "tax_refunds_received",
+      "canonical_group": "operating_cash_flow",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "operating_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "473,742,455.92",
+          "normalized": 473742455.92,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "583,774,205.65",
+          "normalized": 583774205.65,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 3,
+      "label_raw": "收到其他与经营活动有关的现金",
+      "label_normalized": "Other cash received relating to operating activities",
+      "label_language": "zh",
+      "canonical_key": "other_cash_received_from_operating_activities",
+      "canonical_group": "operating_cash_flow",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "operating_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "1,587,590,887.25",
+          "normalized": 1587590887.25,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "2,804,517,335.44",
+          "normalized": 2804517335.44,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 4,
+      "label_raw": "经营活动现金流入小计",
+      "label_normalized": "Subtotal of cash inflows from operating activities",
+      "label_language": "zh",
+      "canonical_key": "subtotal_cash_inflows_operating_activities",
+      "canonical_group": "operating_cash_flow",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "operating_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "270,336,052,914.17",
+          "normalized": 270336052914.17,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "309,542,960,144.06",
+          "normalized": 309542960144.06,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 5,
+      "label_raw": "购买商品、接受劳务支付的现金",
+      "label_normalized": "Cash paid for purchase of goods and services",
+      "label_language": "zh",
+      "canonical_key": "cash_paid_for_goods_and_services",
+      "canonical_group": "operating_cash_flow",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "operating_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "264,220,359,866.92",
+          "normalized": 264220359866.92,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "303,303,078,255.30",
+          "normalized": 303303078255.3,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 6,
+      "label_raw": "支付给职工及为职工支付的现金",
+      "label_normalized": "Cash paid to and on behalf of employees",
+      "label_language": "zh",
+      "canonical_key": "cash_paid_to_employees",
+      "canonical_group": "operating_cash_flow",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "operating_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "1,391,006,324.74",
+          "normalized": 1391006324.74,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "1,494,823,067.81",
+          "normalized": 1494823067.81,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 7,
+      "label_raw": "支付的各项税费",
+      "label_normalized": "Cash paid for taxes",
+      "label_language": "zh",
+      "canonical_key": "cash_paid_for_taxes",
+      "canonical_group": "operating_cash_flow",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "operating_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "1,035,844,754.82",
+          "normalized": 1035844754.82,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "1,240,999,699.74",
+          "normalized": 1240999699.74,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 8,
+      "label_raw": "支付其他与经营活动有关的现金",
+      "label_normalized": "Other cash paid relating to operating activities",
+      "label_language": "zh",
+      "canonical_key": "other_cash_paid_for_operating_activities",
+      "canonical_group": "operating_cash_flow",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "operating_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "1,914,856,851.73",
+          "normalized": 1914856851.73,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "1,816,160,106.69",
+          "normalized": 1816160106.69,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 9,
+      "label_raw": "经营活动现金流出小计",
+      "label_normalized": "Subtotal of cash outflows from operating activities",
+      "label_language": "zh",
+      "canonical_key": "subtotal_cash_outflows_operating_activities",
+      "canonical_group": "operating_cash_flow",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "operating_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "268,562,067,798.21",
+          "normalized": 268562067798.21,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "307,855,061,129.54",
+          "normalized": 307855061129.54,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 10,
+      "label_raw": "经营活动产生的现金流量净额",
+      "label_normalized": "Net Cash Flow from Operating Activities",
+      "label_language": "zh",
+      "canonical_key": "net_cash_flow_from_operating_activities",
+      "canonical_group": "operating_cash_flow",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "operating_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "1,773,985,115.96",
+          "normalized": 1773985115.96,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "1,687,899,014.52",
+          "normalized": 1687899014.52,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 11,
+      "label_raw": "二、投资活动产生的现金流量:",
+      "label_normalized": "Cash flows from investing activities",
+      "label_language": "zh",
+      "canonical_key": "cash_flows_from_investing_activities",
+      "canonical_group": "investing_cash_flow",
+      "row_type": "section_header",
+      "indent_level": 0,
+      "section": "investing_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": null,
+          "normalized": null,
+          "is_null": true,
+          "is_zero": null,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": null,
+          "normalized": null,
+          "is_null": true,
+          "is_zero": null,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 12,
+      "label_raw": "收回投资收到的现金",
+      "label_normalized": "Cash received from recovery of investments",
+      "label_language": "zh",
+      "canonical_key": "cash_received_from_recovery_of_investments",
+      "canonical_group": "investing_cash_flow",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "investing_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "16,810,892,533.59",
+          "normalized": 16810892533.59,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "17,365,552,049.39",
+          "normalized": 17365552049.39,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 13,
+      "label_raw": "取得投资收益收到的现金",
+      "label_normalized": "Cash received from investment income",
+      "label_language": "zh",
+      "canonical_key": "cash_received_from_investment_income",
+      "canonical_group": "investing_cash_flow",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "investing_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "58,053,460.87",
+          "normalized": 58053460.87,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "71,005,061.72",
+          "normalized": 71005061.72,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 14,
+      "label_raw": "处置固定资产、无形资产和其他长期资 产收回的现金净额",
+      "label_normalized": "Net cash received from disposal of fixed assets, intangible assets and other long-term assets",
+      "label_language": "zh",
+      "canonical_key": "net_cash_received_from_disposal_of_long_term_assets",
+      "canonical_group": "investing_cash_flow",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "investing_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "1,420,425,650.73",
+          "normalized": 1420425650.73,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "5,889,015.48",
+          "normalized": 5889015.48,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 15,
+      "label_raw": "处置子公司及其他营业单位收到的现 金净额",
+      "label_normalized": "Net cash received from disposal of subsidiaries and other business units",
+      "label_language": "zh",
+      "canonical_key": "net_cash_received_from_disposal_of_subsidiaries",
+      "canonical_group": "investing_cash_flow",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "investing_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "11,183,392.86",
+          "normalized": 11183392.86,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "56,779,995.72",
+          "normalized": 56779995.72,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 16,
+      "label_raw": "收到其他与投资活动有关的现金",
+      "label_normalized": "Other cash received relating to investing activities",
+      "label_language": "zh",
+      "canonical_key": "other_cash_received_from_investing_activities",
+      "canonical_group": "investing_cash_flow",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "investing_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": null,
+          "normalized": null,
+          "is_null": true,
+          "is_zero": null,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "12,418,381.92",
+          "normalized": 12418381.92,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 17,
+      "label_raw": "投资活动现金流入小计",
+      "label_normalized": "Subtotal of cash inflows from investing activities",
+      "label_language": "zh",
+      "canonical_key": "subtotal_cash_inflows_investing_activities",
+      "canonical_group": "investing_cash_flow",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "investing_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "18,300,555,038.05",
+          "normalized": 18300555038.05,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "17,511,644,504.23",
+          "normalized": 17511644504.23,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 18,
+      "label_raw": "购建固定资产、无形资产和其他长期资 产支付的现金",
+      "label_normalized": "Cash paid for purchase and construction of fixed assets, intangible assets and other long-term assets",
+      "label_language": "zh",
+      "canonical_key": "cash_paid_for_purchase_of_long_term_assets",
+      "canonical_group": "investing_cash_flow",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "investing_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "252,170,190.76",
+          "normalized": 252170190.76,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "1,212,977,491.33",
+          "normalized": 1212977491.33,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 19,
+      "label_raw": "投资支付的现金",
+      "label_normalized": "Cash paid for investments",
+      "label_language": "zh",
+      "canonical_key": "cash_paid_for_investments",
+      "canonical_group": "investing_cash_flow",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "investing_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "26,042,298,014.76",
+          "normalized": 26042298014.76,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "24,467,458,006.53",
+          "normalized": 24467458006.53,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 20,
+      "label_raw": "取得子公司及其他营业单位支付的现 金净额",
+      "label_normalized": "Net cash paid for acquisition of subsidiaries and other business units",
+      "label_language": "zh",
+      "canonical_key": "net_cash_paid_for_acquisition_of_subsidiaries",
+      "canonical_group": "investing_cash_flow",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "investing_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "14,341,257.89",
+          "normalized": 14341257.89,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": null,
+          "normalized": null,
+          "is_null": true,
+          "is_zero": null,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 21,
+      "label_raw": "支付其他与投资活动有关的现金",
+      "label_normalized": "Other cash paid relating to investing activities",
+      "label_language": "zh",
+      "canonical_key": "other_cash_paid_for_investing_activities",
+      "canonical_group": "investing_cash_flow",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "investing_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "3,773,315.63",
+          "normalized": 3773315.63,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": null,
+          "normalized": null,
+          "is_null": true,
+          "is_zero": null,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 22,
+      "label_raw": "投资活动现金流出小计",
+      "label_normalized": "Subtotal of cash outflows from investing activities",
+      "label_language": "zh",
+      "canonical_key": "subtotal_cash_outflows_investing_activities",
+      "canonical_group": "investing_cash_flow",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "investing_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "26,312,582,779.04",
+          "normalized": 26312582779.04,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "25,680,435,497.86",
+          "normalized": 25680435497.86,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 23,
+      "label_raw": "投资活动产生的现金流量净额",
+      "label_normalized": "Net cash flows from investing activities",
+      "label_language": "zh",
+      "canonical_key": "net_cash_flows_from_investing_activities",
+      "canonical_group": "investing_cash_flow",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "investing_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "-8,012,027,740.99",
+          "normalized": -8012027740.99,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "-8,168,790,993.63",
+          "normalized": -8168790993.63,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 24,
+      "label_raw": "三、筹资活动产生的现金流量:",
+      "label_normalized": "Cash flows from financing activities",
+      "label_language": "zh",
+      "canonical_key": "cash_flows_from_financing_activities",
+      "canonical_group": "financing_cash_flow",
+      "row_type": "section_header",
+      "indent_level": 0,
+      "section": "financing_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": null,
+          "normalized": null,
+          "is_null": true,
+          "is_zero": null,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": null,
+          "normalized": null,
+          "is_null": true,
+          "is_zero": null,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 25,
+      "label_raw": "吸收投资收到的现金",
+      "label_normalized": "Cash received from capital contributions",
+      "label_language": "zh",
+      "canonical_key": "cash_received_from_capital_contributions",
+      "canonical_group": "financing_cash_flow",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "financing_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "4,732,885,377.40",
+          "normalized": 4732885377.4,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "5,615,122,941.82",
+          "normalized": 5615122941.82,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 26,
+      "label_raw": "其中:子公司吸收少数股东投资收到的 现金",
+      "label_normalized": "Cash received from minority shareholders by subsidiaries",
+      "label_language": "zh",
+      "canonical_key": "cash_received_from_minority_shareholders_by_subsidiaries",
+      "canonical_group": "financing_cash_flow",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "financing_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "45,125,000.00",
+          "normalized": 45125000.0,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "32,421,055.00",
+          "normalized": 32421055.0,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 27,
+      "label_raw": "取得借款收到的现金",
+      "label_normalized": "Cash received from borrowings",
+      "label_language": "zh",
+      "canonical_key": "cash_received_from_borrowings",
+      "canonical_group": "financing_cash_flow",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "financing_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "84,083,921,269.53",
+          "normalized": 84083921269.53,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "90,177,314,286.41",
+          "normalized": 90177314286.41,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 28,
+      "label_raw": "收到其他与筹资活动有关的现金",
+      "label_normalized": "Other cash received relating to financing activities",
+      "label_language": "zh",
+      "canonical_key": "other_cash_received_from_financing_activities",
+      "canonical_group": "financing_cash_flow",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "financing_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "26,243,021,048.93",
+          "normalized": 26243021048.93,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "23,485,224,879.68",
+          "normalized": 23485224879.68,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 29,
+      "label_raw": "筹资活动现金流入小计",
+      "label_normalized": "Subtotal of cash inflows from financing activities",
+      "label_language": "zh",
+      "canonical_key": "subtotal_cash_inflows_financing_activities",
+      "canonical_group": "financing_cash_flow",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "financing_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "115,059,827,695.86",
+          "normalized": 115059827695.86,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "119,277,662,107.91",
+          "normalized": 119277662107.91,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 30,
+      "label_raw": "偿还债务支付的现金",
+      "label_normalized": "Cash paid for repayment of debts",
+      "label_language": "zh",
+      "canonical_key": "cash_paid_for_repayment_of_debts",
+      "canonical_group": "financing_cash_flow",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "financing_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "71,256,302,006.53",
+          "normalized": 71256302006.53,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "85,475,660,093.24",
+          "normalized": 85475660093.24,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 31,
+      "label_raw": "分配股利、利润或偿付利息支付的现金",
+      "label_normalized": "Cash paid for dividends, profits or interest",
+      "label_language": "zh",
+      "canonical_key": "cash_paid_for_dividends_profits_or_interest",
+      "canonical_group": "financing_cash_flow",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "financing_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "1,898,397,069.82",
+          "normalized": 1898397069.82,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "2,352,600,680.89",
+          "normalized": 2352600680.89,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 32,
+      "label_raw": "其中:子公司支付给少数股东的股利、 利润",
+      "label_normalized": "Dividends and profits paid to minority shareholders by subsidiaries",
+      "label_language": "zh",
+      "canonical_key": "dividends_paid_to_minority_shareholders_by_subsidiaries",
+      "canonical_group": "financing_cash_flow",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "financing_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "227,045,393.10",
+          "normalized": 227045393.1,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "142,061,593.35",
+          "normalized": 142061593.35,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 33,
+      "label_raw": "支付其他与筹资活动有关的现金",
+      "label_normalized": "Other cash paid relating to financing activities",
+      "label_language": "zh",
+      "canonical_key": "other_cash_paid_for_financing_activities",
+      "canonical_group": "financing_cash_flow",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "financing_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "35,537,829,136.56",
+          "normalized": 35537829136.56,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "26,673,992,564.01",
+          "normalized": 26673992564.01,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 34,
+      "label_raw": "筹资活动现金流出小计",
+      "label_normalized": "Subtotal of cash outflows from financing activities",
+      "label_language": "zh",
+      "canonical_key": "subtotal_cash_outflows_financing_activities",
+      "canonical_group": "financing_cash_flow",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "financing_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "108,692,528,212.91",
+          "normalized": 108692528212.91,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "114,502,253,338.14",
+          "normalized": 114502253338.14,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 35,
+      "label_raw": "筹资活动产生的现金流量净额",
+      "label_normalized": "Net cash flows from financing activities",
+      "label_language": "zh",
+      "canonical_key": "net_cash_flows_from_financing_activities",
+      "canonical_group": "financing_cash_flow",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "financing_activities",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "6,367,299,482.95",
+          "normalized": 6367299482.95,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "4,775,408,769.77",
+          "normalized": 4775408769.77,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 36,
+      "label_raw": "四、汇率变动对现金及现金等价物的影响",
+      "label_normalized": "Effect of exchange rate changes on cash and cash equivalents",
+      "label_language": "zh",
+      "canonical_key": "effect_of_exchange_rate_changes_on_cash_and_cash_equivalents",
+      "canonical_group": "cash_reconciliation",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "cash_reconciliation",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "-100,715,792.72",
+          "normalized": -100715792.72,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "-38,384,868.29",
+          "normalized": -38384868.29,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 37,
+      "label_raw": "五、现金及现金等价物净增加额",
+      "label_normalized": "Net increase in cash and cash equivalents",
+      "label_language": "zh",
+      "canonical_key": "net_increase_in_cash_and_cash_equivalents",
+      "canonical_group": "cash_reconciliation",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "cash_reconciliation",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "28,541,065.20",
+          "normalized": 28541065.2,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "-1,743,868,077.63",
+          "normalized": -1743868077.63,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 38,
+      "label_raw": "加:期初现金及现金等价物余额",
+      "label_normalized": "Cash and cash equivalents at beginning of period",
+      "label_language": "zh",
+      "canonical_key": "cash_and_cash_equivalents_at_beginning_of_period",
+      "canonical_group": "cash_reconciliation",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "cash_reconciliation",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "8,045,831,882.34",
+          "normalized": 8045831882.34,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "13,537,305,508.98",
+          "normalized": 13537305508.98,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    },
+    {
+      "row_index": 39,
+      "label_raw": "六、期末现金及现金等价物余额",
+      "label_normalized": "Cash and cash equivalents at end of period",
+      "label_language": "zh",
+      "canonical_key": "cash_and_cash_equivalents_at_end_of_period",
+      "canonical_group": "cash_reconciliation",
+      "row_type": "line_item",
+      "indent_level": 1,
+      "section": "cash_reconciliation",
+      "parent_canonical_key": null,
+      "sign_hint": null,
+      "is_derived_total": false,
+      "is_required_anchor": false,
+      "source_page": null,
+      "source_bbox": null,
+      "values": [
+        {
+          "raw": "8,074,372,947.54",
+          "normalized": 8074372947.54,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 1
+        },
+        {
+          "raw": "11,793,437,431.35",
+          "normalized": 11793437431.35,
+          "is_null": false,
+          "is_zero": false,
+          "value_kind": "currency",
+          "confidence": null,
+          "column_index": 2
+        }
+      ]
+    }
+  ],
+  "validation": {
+    "status": "passed",
+    "validator_version": "2.0.0",
+    "rule_set_version": "1.0.0",
+    "validation_run_id": null,
+    "validated_at": "2026-03-15T19:54:01.877449Z",
+    "warnings": [],
+    "errors": []
+  }
+}

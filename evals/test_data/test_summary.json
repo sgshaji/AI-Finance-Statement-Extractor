@@ -1,0 +1,32 @@
+[
+  {
+    "statement_type": "balance_sheet",
+    "status": "extracted",
+    "page_range": {
+      "start": 5,
+      "end": null
+    },
+    "row_count": 87,
+    "column_count": 3
+  },
+  {
+    "statement_type": "income_statement",
+    "status": "extracted",
+    "page_range": {
+      "start": null,
+      "end": null
+    },
+    "row_count": 54,
+    "column_count": 3
+  },
+  {
+    "statement_type": "cash_flow",
+    "status": "extracted",
+    "page_range": {
+      "start": null,
+      "end": null
+    },
+    "row_count": 40,
+    "column_count": 3
+  }
+]

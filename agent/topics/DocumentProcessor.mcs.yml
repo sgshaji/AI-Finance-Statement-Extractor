@@ -1,0 +1,101 @@
+# Name: Document Processor
+# Handles file uploads: submits for extraction, polls for results, then generates Excel.
+kind: AdaptiveDialog
+modelDescription: >-
+  This topic handles the data extraction from the user provided financial statement PDF.
+  It submits the file for extraction, polls until results are ready, then generates an Excel report.
+
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main
+  intent: {}
+  actions:
+    # Step 1: Tell the user we're starting
+    - kind: SendActivity
+      id: sendActivity_start
+      activity: Processing your financial report. This may take up to a minute...
+
+    # Step 2: Submit the file for extraction (returns jobId immediately)
+    - kind: BeginDialog
+      id: beginDialog_submit
+      dialog: cree1_FinanceStatementAnalysisAgent.action.SubmitExtraction
+      input:
+        kind: ActionInputBinding
+        binding:
+          file: =First(System.Activity.Attachments).Content
+          fileName: =First(System.Activity.Attachments).Name
+      output:
+        kind: ActionOutputBinding
+        binding:
+          jobId: Topic.jobId
+          status: Topic.status
+
+    # Step 3: Polling loop — keep checking until status != "processing"
+    - kind: ConditionGroup
+      id: conditionGroup_pollLoop
+      conditions:
+        - id: condition_isProcessing
+          condition: =Topic.status = "processing"
+          actions:
+            # Wait 10 seconds before polling
+            - kind: Wait
+              id: wait_poll
+              duration: 10000
+
+            # Poll for results
+            - kind: BeginDialog
+              id: beginDialog_poll
+              dialog: cree1_FinanceStatementAnalysisAgent.action.PollExtractionStatus
+              input:
+                kind: ActionInputBinding
+                binding:
+                  jobId: =Topic.jobId
+              output:
+                kind: ActionOutputBinding
+                binding:
+                  status: Topic.status
+                  company_name: Topic.company_name
+                  summary: Topic.summary
+                  balance_sheet: Topic.balance_sheet
+                  income_statement: Topic.income_statement
+                  cash_flow: Topic.cash_flow
+
+            # Loop back: check condition again
+            - kind: GotoAction
+              id: goto_pollLoop
+              actionId: conditionGroup_pollLoop
+
+    # Step 4: Extraction complete — show summary
+    - kind: SendActivity
+      id: sendActivity_results
+      activity: |-
+        Extraction complete for **{Topic.company_name}**
+
+        Now generating your Excel report...
+
+    # Step 5: Call the Flow to generate Excel
+    - kind: BeginDialog
+      id: beginDialog_excel
+      dialog: cree1_FinanceStatementAnalysisAgent.action.FinanceStatementProcessor
+      input:
+        kind: ActionInputBinding
+        binding:
+          balance_sheet: =Topic.balance_sheet
+          income_statement: =Topic.income_statement
+          cash_flow: =Topic.cash_flow
+          summary: =Topic.summary
+          company_name: =Topic.company_name
+      output:
+        kind: ActionOutputBinding
+        binding:
+          fileurl: Topic.fileurl
+          filename: Topic.filename
+
+    # Step 6: Show download link
+    - kind: SendActivity
+      id: sendActivity_download
+      activity: |-
+        Your report is ready: **[{Topic.filename}]({Topic.fileurl})**
+
+inputType: {}
+outputType: {}

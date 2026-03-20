@@ -1,797 +1,120 @@
-# Name: HITL Review
-# Human-in-the-loop review wizard for financial statement extractions.
-# Triggered by redirect from FileUploadHandler after extraction completes.
-# Calls backend API to build dynamic Adaptive Cards for each statement,
-# captures analyst edits, and applies corrections before Excel generation.
 kind: AdaptiveDialog
-modelDescription: >-
-  This topic provides a human-in-the-loop review workflow for extracted financial statements.
-  It calls the backend API to dynamically build Adaptive Cards with editable fields for each
-  statement, captures analyst corrections, and applies them before generating the Excel report.
-  Only triggered by redirect from the File Upload Handler.
-
+modelDescription: HITL Review - shows confidence triage and lets analyst review or proceed to Excel generation.
 beginDialog:
-  kind: OnSystemRedirect
+  kind: OnRedirect
   id: main
-
   actions:
-    # ──────────────────────────────────────────────
-    # Initialize topic variables
-    # ──────────────────────────────────────────────
-    - kind: SetVariable
-      id: setVar_initBsCorr
-      variable: init:Topic.bs_corrections
-      value: ="{}"
+    - kind: SendActivity
+      id: sendMsg_summary
+      activity: |-
+        **Extraction Complete for {Global.company_name}**
 
-    - kind: SetVariable
-      id: setVar_initIsCorr
-      variable: init:Topic.is_corrections
-      value: ="{}"
+        **Confidence Scores:**
+        {Global.confidence}
 
-    - kind: SetVariable
-      id: setVar_initCfCorr
-      variable: init:Topic.cf_corrections
-      value: ="{}"
+    - kind: AdaptiveCardPrompt
+      id: acPrompt_triage
+      card:
+        type: AdaptiveCard
+        version: "1.5"
+        body:
+          - type: TextBlock
+            text: What would you like to do?
+            weight: Bolder
+            size: Medium
+          - type: TextBlock
+            text: Review flagged items before generating Excel, or proceed directly.
+            wrap: true
+            isSubtle: true
+        actions:
+          - type: Action.Submit
+            title: "\u2705 Proceed to Excel"
+            style: positive
+            data:
+              action: proceed
+          - type: Action.Submit
+            title: "\uD83D\uDD0D Review & Edit"
+            data:
+              action: review
+      output:
+        binding:
+          action: Topic.triage_action
+      outputType:
+        properties:
+          action:
+            displayName: User Action
+            type: String
 
-    - kind: SetVariable
-      id: setVar_parseConf
-      variable: init:Topic.confidenceParsed
-      value: =ParseJSON(Topic.confidence)
-
-    # ──────────────────────────────────────────────
-    # Determine which statements exist (not "not_found")
-    # ──────────────────────────────────────────────
-    - kind: SetVariable
-      id: setVar_bsExists
-      variable: init:Topic.bs_exists
-      value: =If(Text(Topic.confidenceParsed.balance_sheet.level) <> "not_found", true, false)
-
-    - kind: SetVariable
-      id: setVar_isExists
-      variable: init:Topic.is_exists
-      value: =If(Text(Topic.confidenceParsed.income_statement.level) <> "not_found", true, false)
-
-    - kind: SetVariable
-      id: setVar_cfExists
-      variable: init:Topic.cf_exists
-      value: =If(Text(Topic.confidenceParsed.cash_flow.level) <> "not_found", true, false)
-
-    # ──────────────────────────────────────────────
-    # Calculate total steps (only existing statements)
-    # ──────────────────────────────────────────────
-    - kind: SetVariable
-      id: setVar_totalSteps
-      variable: init:Topic.total_steps
-      value: =If(Topic.bs_exists, 1, 0) + If(Topic.is_exists, 1, 0) + If(Topic.cf_exists, 1, 0)
-
-    # ──────────────────────────────────────────────
-    # Handle step override (for back-navigation via ReplaceDialog)
-    # ──────────────────────────────────────────────
     - kind: ConditionGroup
-      id: condGrp_ovr1Kz
+      id: condGrp_triage
       conditions:
-        - id: condItem_hasOvr
-          condition: =!IsBlank(Topic.current_step_override)
+        - id: condItem_review
+          condition: =Topic.triage_action = "review"
           actions:
-            - kind: SetVariable
-              id: setVar_ovrStep
-              variable: init:Topic.current_step
-              value: =Value(Topic.current_step_override)
+            - kind: SendActivity
+              id: sendMsg_reviewBs
+              activity: |-
+                **Balance Sheet:**
+                {Global.balance_sheet}
 
-            # Restore corrections from override inputs
-            - kind: ConditionGroup
-              id: condGrp_restCorr
-              conditions:
-                - id: condItem_hasBsCorr
-                  condition: =!IsBlank(Topic.bs_corrections_override)
-                  actions:
-                    - kind: SetVariable
-                      id: setVar_restBsCorr
-                      variable: Topic.bs_corrections
-                      value: =Topic.bs_corrections_override
-              elseActions: []
+            - kind: SendActivity
+              id: sendMsg_reviewIs
+              activity: |-
+                **Income Statement:**
+                {Global.income_statement}
 
-            - kind: ConditionGroup
-              id: condGrp_restIsCorr
-              conditions:
-                - id: condItem_hasIsCorr
-                  condition: =!IsBlank(Topic.is_corrections_override)
-                  actions:
-                    - kind: SetVariable
-                      id: setVar_restIsCorr
-                      variable: Topic.is_corrections
-                      value: =Topic.is_corrections_override
-              elseActions: []
+            - kind: SendActivity
+              id: sendMsg_reviewCf
+              activity: |-
+                **Cash Flow:**
+                {Global.cash_flow}
 
-            - kind: ConditionGroup
-              id: condGrp_restCfCorr
-              conditions:
-                - id: condItem_hasCfCorr
-                  condition: =!IsBlank(Topic.cf_corrections_override)
-                  actions:
-                    - kind: SetVariable
-                      id: setVar_restCfCorr
-                      variable: Topic.cf_corrections
-                      value: =Topic.cf_corrections_override
-              elseActions: []
-
-      elseActions:
-        - kind: SetVariable
-          id: setVar_initStep
-          variable: init:Topic.current_step
-          value: =0
-
-    # ══════════════════════════════════════════════
-    # STEP 0: Navigator Card
-    # ══════════════════════════════════════════════
-    - kind: ConditionGroup
-      id: condGrp_showNav
-      conditions:
-        - id: condItem_navShow
-          condition: =Topic.current_step = 0
-          actions:
-            # Call BuildReviewCard action for navigator
-            - kind: BeginDialog
-              id: beginDlg_navCard7x
-              dialog: cree1_FinanceStatementAnalysisAgent.action.BuildReviewCard
-              input:
-                kind: ActionInputBinding
-                binding:
-                  job_id: =Topic.job_id
-                  card_type: ="navigator"
-                  statement_type: =""
-                  step_num: ="0"
-                  total_steps: =Text(Topic.total_steps)
-                  editable: ="false"
-                  corrections: ="{}"
-              output:
-                kind: ActionOutputBinding
-                binding:
-                  card_json: Topic.navigator_card_json
-
-            # Check for error
-            - kind: ConditionGroup
-              id: condGrp_navErr
-              conditions:
-                - id: condItem_navHttpErr
-                  condition: =IsBlank(Topic.navigator_card_json)
-                  actions:
-                    - kind: SendActivity
-                      id: sendMsg_navErr
-                      activity: Something went wrong loading the review navigator.
-                    - kind: EndDialog
-                      id: endDlg_navErr
-              elseActions: []
-
-            # Display the navigator Adaptive Card
             - kind: AdaptiveCardPrompt
-              id: acPrompt_nav1Rq
-              card: =Topic.navigator_card_json
+              id: acPrompt_afterReview
+              card:
+                type: AdaptiveCard
+                version: "1.5"
+                body:
+                  - type: TextBlock
+                    text: Review complete. Ready to generate Excel?
+                    weight: Bolder
+                actions:
+                  - type: Action.Submit
+                    title: Generate Excel
+                    style: positive
+                    data:
+                      action: proceed
               output:
                 binding:
-                  action: Topic.nav_action
+                  action: Topic.review_done
               outputType:
                 properties:
                   action:
-                    displayName: action
+                    displayName: Action
                     type: String
 
-            # Branch: Skip review -> generate Excel immediately
-            - kind: ConditionGroup
-              id: condGrp_s9Pv2w
-              conditions:
-                - id: condItem_skipRv
-                  condition: =Topic.nav_action = "skip_review"
-                  actions:
-                    - kind: SendActivity
-                      id: sendMsg_skip3q
-                      activity: Skipping review. Generating your Excel report now...
+    - kind: SendActivity
+      id: sendMsg_generating
+      activity: Generating your Excel report...
 
-                    - kind: BeginDialog
-                      id: beginDlg_skip7x
-                      dialog: cree1_FinanceStatementAnalysisAgent.action.FinanceStatementProcessor
-                      input:
-                        kind: ActionInputBinding
-                        binding:
-                          balance_sheet: =Topic.balance_sheet
-                          income_statement: =Topic.income_statement
-                          cash_flow: =Topic.cash_flow
-                          summary: =Topic.summary
-                          company_name: =Topic.company_name
-                      output:
-                        kind: ActionOutputBinding
-                        binding:
-                          fileurl: Topic.fileurl
-                          filename: Topic.filename
+    - kind: BeginDialog
+      id: beginDlg_excel
+      input:
+        binding:
+          text: =Global.balance_sheet
+          text_1: =Global.income_statement
+          text_2: =Global.cash_flow
+          text_3: =Global.summary
+          text_4: =Global.company_name
+      dialog: cree1_FinanceStatementAnalysisAgent.action.FinanceStatementProcessor
+      output:
+        binding:
+          filename: Topic.filename
+          fileurl: Topic.fileurl
 
-                    - kind: SendActivity
-                      id: sendMsg_dlSkp4
-                      activity: |-
-                        Your report is ready: [{Topic.filename}]({Topic.fileurl})
+    - kind: SendActivity
+      id: sendMsg_done
+      activity: "Your report is ready: **[{Topic.filename}]({Topic.fileurl})**"
 
-                    - kind: EndDialog
-                      id: endDlg_sk1p9z
-
-              elseActions:
-                # start_review -> advance to step 1
-                - kind: SetVariable
-                  id: setVar_step1x
-                  variable: Topic.current_step
-                  value: =1
-
-    # ══════════════════════════════════════════════
-    # STEP 1: Balance Sheet Review
-    # ══════════════════════════════════════════════
-    - kind: ConditionGroup
-      id: condGrp_bs4Lm2
-      conditions:
-        - id: condItem_bs1Rv
-          condition: =Topic.current_step = 1
-          actions:
-            # Skip if balance sheet not found
-            - kind: ConditionGroup
-              id: condGrp_bsSkip
-              conditions:
-                - id: condItem_bsNotFound
-                  condition: =!Topic.bs_exists
-                  actions:
-                    - kind: SetVariable
-                      id: setVar_bsSkip2
-                      variable: Topic.current_step
-                      value: =2
-              elseActions:
-                # Determine editable flag: medium or low -> editable
-                - kind: SetVariable
-                  id: setVar_bsEditable
-                  variable: init:Topic.current_editable
-                  value: =If(Text(Topic.confidenceParsed.balance_sheet.level) = "medium" Or Text(Topic.confidenceParsed.balance_sheet.level) = "low", true, false)
-
-                # Calculate step_num (always 1 for BS since it's first)
-                - kind: SetVariable
-                  id: setVar_bsStepNum
-                  variable: init:Topic.current_step_num
-                  value: =1
-
-                # Call BuildReviewCard action for balance sheet
-                - kind: BeginDialog
-                  id: beginDlg_bsCard3v
-                  dialog: cree1_FinanceStatementAnalysisAgent.action.BuildReviewCard
-                  input:
-                    kind: ActionInputBinding
-                    binding:
-                      job_id: =Topic.job_id
-                      card_type: ="statement"
-                      statement_type: ="balance_sheet"
-                      step_num: =Text(Topic.current_step_num)
-                      total_steps: =Text(Topic.total_steps)
-                      editable: =If(Topic.current_editable, "true", "false")
-                      corrections: =Topic.bs_corrections
-                  output:
-                    kind: ActionOutputBinding
-                    binding:
-                      card_json: Topic.statement_card_json
-
-                - kind: ConditionGroup
-                  id: condGrp_bsCardErr
-                  conditions:
-                    - id: condItem_bsHttpErr
-                      condition: =IsBlank(Topic.statement_card_json)
-                      actions:
-                        - kind: SendActivity
-                          id: sendMsg_bsErr
-                          activity: Failed to load the balance sheet review card.
-                        - kind: EndDialog
-                          id: endDlg_bsErr
-                  elseActions: []
-
-                # Display the balance sheet Adaptive Card
-                - kind: AdaptiveCardPrompt
-                  id: acPrompt_bs7Kq
-                  card: =Topic.statement_card_json
-                  output:
-                    binding:
-                      actionField: Topic.card_response
-                  outputType:
-                    properties:
-                      actionField:
-                        displayName: Card Response
-                        type: String
-
-                # Parse the card submission via ParseCardSubmission action
-                - kind: BeginDialog
-                  id: beginDlg_bsParse5w
-                  dialog: cree1_FinanceStatementAnalysisAgent.action.ParseCardSubmission
-                  input:
-                    kind: ActionInputBinding
-                    binding:
-                      job_id: =Topic.job_id
-                      statement_type: ="balance_sheet"
-                      payload: =Topic.card_response
-                  output:
-                    kind: ActionOutputBinding
-                    binding:
-                      action: Topic.current_action
-                      corrections: Topic.bs_corrections
-
-                # Handle actions: next, submit, edit
-                - kind: ConditionGroup
-                  id: condGrp_bsAction
-                  conditions:
-                    - id: condItem_bsNext
-                      condition: =Topic.current_action = "next"
-                      actions:
-                        - kind: SetVariable
-                          id: setVar_bsNext
-                          variable: Topic.current_step
-                          value: =2
-
-                    - id: condItem_bsSubmit
-                      condition: =Topic.current_action = "submit"
-                      actions:
-                        - kind: SetVariable
-                          id: setVar_bsSubmitStep
-                          variable: Topic.current_step
-                          value: =99
-
-                    - id: condItem_bsEdit
-                      condition: =Topic.current_action = "edit"
-                      actions:
-                        # Re-display with editable=true via ReplaceDialog
-                        - kind: ReplaceDialog
-                          id: repDlg_bsEdit
-                          dialog: cree1_FinanceStatementAnalysisAgent.topic.HITLReview
-                          input:
-                            kind: ActionInputBinding
-                            binding:
-                              job_id: =Topic.job_id
-                              confidence: =Topic.confidence
-                              balance_sheet: =Topic.balance_sheet
-                              income_statement: =Topic.income_statement
-                              cash_flow: =Topic.cash_flow
-                              summary: =Topic.summary
-                              company_name: =Topic.company_name
-                              current_step_override: ="1"
-                              bs_corrections_override: =Topic.bs_corrections
-                              is_corrections_override: =Topic.is_corrections
-                              cf_corrections_override: =Topic.cf_corrections
-
-    # ══════════════════════════════════════════════
-    # STEP 2: Income Statement Review
-    # ══════════════════════════════════════════════
-    - kind: ConditionGroup
-      id: condGrp_is8Nm3
-      conditions:
-        - id: condItem_is2Rv
-          condition: =Topic.current_step = 2
-          actions:
-            # Skip if income statement not found
-            - kind: ConditionGroup
-              id: condGrp_isSkip
-              conditions:
-                - id: condItem_isNotFound
-                  condition: =!Topic.is_exists
-                  actions:
-                    - kind: SetVariable
-                      id: setVar_isSkip3
-                      variable: Topic.current_step
-                      value: =3
-              elseActions:
-                # Determine editable flag
-                - kind: SetVariable
-                  id: setVar_isEditable
-                  variable: Topic.current_editable
-                  value: =If(Text(Topic.confidenceParsed.income_statement.level) = "medium" Or Text(Topic.confidenceParsed.income_statement.level) = "low", true, false)
-
-                # Calculate step_num
-                - kind: SetVariable
-                  id: setVar_isStepNum
-                  variable: Topic.current_step_num
-                  value: =If(Topic.bs_exists, 2, 1)
-
-                # Call BuildReviewCard action for income statement
-                - kind: BeginDialog
-                  id: beginDlg_isCard6t
-                  dialog: cree1_FinanceStatementAnalysisAgent.action.BuildReviewCard
-                  input:
-                    kind: ActionInputBinding
-                    binding:
-                      job_id: =Topic.job_id
-                      card_type: ="statement"
-                      statement_type: ="income_statement"
-                      step_num: =Text(Topic.current_step_num)
-                      total_steps: =Text(Topic.total_steps)
-                      editable: =If(Topic.current_editable, "true", "false")
-                      corrections: =Topic.is_corrections
-                  output:
-                    kind: ActionOutputBinding
-                    binding:
-                      card_json: Topic.statement_card_json
-
-                - kind: ConditionGroup
-                  id: condGrp_isCardErr
-                  conditions:
-                    - id: condItem_isHttpErr
-                      condition: =IsBlank(Topic.statement_card_json)
-                      actions:
-                        - kind: SendActivity
-                          id: sendMsg_isErr
-                          activity: Failed to load the income statement review card.
-                        - kind: EndDialog
-                          id: endDlg_isErr
-                  elseActions: []
-
-                # Display the income statement Adaptive Card
-                - kind: AdaptiveCardPrompt
-                  id: acPrompt_is3Wz
-                  card: =Topic.statement_card_json
-                  output:
-                    binding:
-                      actionField: Topic.card_response
-                  outputType:
-                    properties:
-                      actionField:
-                        displayName: Card Response
-                        type: String
-
-                # Parse the card submission via ParseCardSubmission action
-                - kind: BeginDialog
-                  id: beginDlg_isParse8r
-                  dialog: cree1_FinanceStatementAnalysisAgent.action.ParseCardSubmission
-                  input:
-                    kind: ActionInputBinding
-                    binding:
-                      job_id: =Topic.job_id
-                      statement_type: ="income_statement"
-                      payload: =Topic.card_response
-                  output:
-                    kind: ActionOutputBinding
-                    binding:
-                      action: Topic.current_action
-                      corrections: Topic.is_corrections
-
-                # Handle actions: next, previous, submit, edit
-                - kind: ConditionGroup
-                  id: condGrp_isAction
-                  conditions:
-                    - id: condItem_isNext
-                      condition: =Topic.current_action = "next"
-                      actions:
-                        - kind: SetVariable
-                          id: setVar_isNext
-                          variable: Topic.current_step
-                          value: =3
-
-                    - id: condItem_isPrev
-                      condition: =Topic.current_action = "previous"
-                      actions:
-                        - kind: ReplaceDialog
-                          id: repDlg_isPrev
-                          dialog: cree1_FinanceStatementAnalysisAgent.topic.HITLReview
-                          input:
-                            kind: ActionInputBinding
-                            binding:
-                              job_id: =Topic.job_id
-                              confidence: =Topic.confidence
-                              balance_sheet: =Topic.balance_sheet
-                              income_statement: =Topic.income_statement
-                              cash_flow: =Topic.cash_flow
-                              summary: =Topic.summary
-                              company_name: =Topic.company_name
-                              current_step_override: ="1"
-                              bs_corrections_override: =Topic.bs_corrections
-                              is_corrections_override: =Topic.is_corrections
-                              cf_corrections_override: =Topic.cf_corrections
-
-                    - id: condItem_isSubmit
-                      condition: =Topic.current_action = "submit"
-                      actions:
-                        - kind: SetVariable
-                          id: setVar_isSubmitStep
-                          variable: Topic.current_step
-                          value: =99
-
-                    - id: condItem_isEdit
-                      condition: =Topic.current_action = "edit"
-                      actions:
-                        - kind: ReplaceDialog
-                          id: repDlg_isEdit
-                          dialog: cree1_FinanceStatementAnalysisAgent.topic.HITLReview
-                          input:
-                            kind: ActionInputBinding
-                            binding:
-                              job_id: =Topic.job_id
-                              confidence: =Topic.confidence
-                              balance_sheet: =Topic.balance_sheet
-                              income_statement: =Topic.income_statement
-                              cash_flow: =Topic.cash_flow
-                              summary: =Topic.summary
-                              company_name: =Topic.company_name
-                              current_step_override: ="2"
-                              bs_corrections_override: =Topic.bs_corrections
-                              is_corrections_override: =Topic.is_corrections
-                              cf_corrections_override: =Topic.cf_corrections
-
-    # ══════════════════════════════════════════════
-    # STEP 3: Cash Flow Review
-    # ══════════════════════════════════════════════
-    - kind: ConditionGroup
-      id: condGrp_cf2Rp4
-      conditions:
-        - id: condItem_cf3Rv
-          condition: =Topic.current_step = 3
-          actions:
-            # Skip if cash flow not found
-            - kind: ConditionGroup
-              id: condGrp_cfSkip
-              conditions:
-                - id: condItem_cfNotFound
-                  condition: =!Topic.cf_exists
-                  actions:
-                    # No more statements; go to Excel generation
-                    - kind: SetVariable
-                      id: setVar_cfSkip99
-                      variable: Topic.current_step
-                      value: =99
-              elseActions:
-                # Determine editable flag
-                - kind: SetVariable
-                  id: setVar_cfEditable
-                  variable: Topic.current_editable
-                  value: =If(Text(Topic.confidenceParsed.cash_flow.level) = "medium" Or Text(Topic.confidenceParsed.cash_flow.level) = "low", true, false)
-
-                # Calculate step_num
-                - kind: SetVariable
-                  id: setVar_cfStepNum
-                  variable: Topic.current_step_num
-                  value: =If(Topic.bs_exists, 1, 0) + If(Topic.is_exists, 1, 0) + 1
-
-                # Call BuildReviewCard action for cash flow
-                - kind: BeginDialog
-                  id: beginDlg_cfCard2m
-                  dialog: cree1_FinanceStatementAnalysisAgent.action.BuildReviewCard
-                  input:
-                    kind: ActionInputBinding
-                    binding:
-                      job_id: =Topic.job_id
-                      card_type: ="statement"
-                      statement_type: ="cash_flow"
-                      step_num: =Text(Topic.current_step_num)
-                      total_steps: =Text(Topic.total_steps)
-                      editable: =If(Topic.current_editable, "true", "false")
-                      corrections: =Topic.cf_corrections
-                  output:
-                    kind: ActionOutputBinding
-                    binding:
-                      card_json: Topic.statement_card_json
-
-                - kind: ConditionGroup
-                  id: condGrp_cfCardErr
-                  conditions:
-                    - id: condItem_cfHttpErr
-                      condition: =IsBlank(Topic.statement_card_json)
-                      actions:
-                        - kind: SendActivity
-                          id: sendMsg_cfErr
-                          activity: Failed to load the cash flow review card.
-                        - kind: EndDialog
-                          id: endDlg_cfErr
-                  elseActions: []
-
-                # Display the cash flow Adaptive Card
-                - kind: AdaptiveCardPrompt
-                  id: acPrompt_cf9Tx
-                  card: =Topic.statement_card_json
-                  output:
-                    binding:
-                      actionField: Topic.card_response
-                  outputType:
-                    properties:
-                      actionField:
-                        displayName: Card Response
-                        type: String
-
-                # Parse the card submission via ParseCardSubmission action
-                - kind: BeginDialog
-                  id: beginDlg_cfParse4n
-                  dialog: cree1_FinanceStatementAnalysisAgent.action.ParseCardSubmission
-                  input:
-                    kind: ActionInputBinding
-                    binding:
-                      job_id: =Topic.job_id
-                      statement_type: ="cash_flow"
-                      payload: =Topic.card_response
-                  output:
-                    kind: ActionOutputBinding
-                    binding:
-                      action: Topic.current_action
-                      corrections: Topic.cf_corrections
-
-                # Handle actions: previous, submit, edit
-                - kind: ConditionGroup
-                  id: condGrp_cfAction
-                  conditions:
-                    - id: condItem_cfPrev
-                      condition: =Topic.current_action = "previous"
-                      actions:
-                        - kind: ReplaceDialog
-                          id: repDlg_cfPrev
-                          dialog: cree1_FinanceStatementAnalysisAgent.topic.HITLReview
-                          input:
-                            kind: ActionInputBinding
-                            binding:
-                              job_id: =Topic.job_id
-                              confidence: =Topic.confidence
-                              balance_sheet: =Topic.balance_sheet
-                              income_statement: =Topic.income_statement
-                              cash_flow: =Topic.cash_flow
-                              summary: =Topic.summary
-                              company_name: =Topic.company_name
-                              current_step_override: ="2"
-                              bs_corrections_override: =Topic.bs_corrections
-                              is_corrections_override: =Topic.is_corrections
-                              cf_corrections_override: =Topic.cf_corrections
-
-                    - id: condItem_cfSubmit
-                      condition: =Topic.current_action = "submit"
-                      actions:
-                        - kind: SetVariable
-                          id: setVar_cfSubmitStep
-                          variable: Topic.current_step
-                          value: =99
-
-                    - id: condItem_cfEdit
-                      condition: =Topic.current_action = "edit"
-                      actions:
-                        - kind: ReplaceDialog
-                          id: repDlg_cfEdit
-                          dialog: cree1_FinanceStatementAnalysisAgent.topic.HITLReview
-                          input:
-                            kind: ActionInputBinding
-                            binding:
-                              job_id: =Topic.job_id
-                              confidence: =Topic.confidence
-                              balance_sheet: =Topic.balance_sheet
-                              income_statement: =Topic.income_statement
-                              cash_flow: =Topic.cash_flow
-                              summary: =Topic.summary
-                              company_name: =Topic.company_name
-                              current_step_override: ="3"
-                              bs_corrections_override: =Topic.bs_corrections
-                              is_corrections_override: =Topic.is_corrections
-                              cf_corrections_override: =Topic.cf_corrections
-
-                  elseActions:
-                    # next or default -> go to Excel generation
-                    - kind: SetVariable
-                      id: setVar_cfNext99
-                      variable: Topic.current_step
-                      value: =99
-
-    # ══════════════════════════════════════════════
-    # STEP 99: Apply Corrections & Generate Excel
-    # ══════════════════════════════════════════════
-    - kind: ConditionGroup
-      id: condGrp_genExcel
-      conditions:
-        - id: condItem_genExcel
-          condition: =Topic.current_step = 99
-          actions:
-            - kind: SendActivity
-              id: sendMsg_genXl
-              activity: Review complete. Applying corrections and generating your Excel report...
-
-            # Call ApplyCorrections action
-            - kind: SetVariable
-              id: setVar_allCorr
-              variable: init:Topic.all_corrections
-              value: =Concatenate("{""balance_sheet"":", Topic.bs_corrections, ",""income_statement"":", Topic.is_corrections, ",""cash_flow"":", Topic.cf_corrections, "}")
-
-            - kind: BeginDialog
-              id: beginDlg_applyCorr9k
-              dialog: cree1_FinanceStatementAnalysisAgent.action.ApplyCorrections
-              input:
-                kind: ActionInputBinding
-                binding:
-                  job_id: =Topic.job_id
-                  corrections: =Topic.all_corrections
-              output:
-                kind: ActionOutputBinding
-                binding:
-                  balance_sheet: Topic.corrected_balance_sheet
-                  income_statement: Topic.corrected_income_statement
-                  cash_flow: Topic.corrected_cash_flow
-                  summary: Topic.corrected_summary
-                  company_name: Topic.corrected_company_name
-
-            - kind: ConditionGroup
-              id: condGrp_corrErr
-              conditions:
-                - id: condItem_corrHttpErr
-                  condition: =IsBlank(Topic.corrected_balance_sheet)
-                  actions:
-                    - kind: SendActivity
-                      id: sendMsg_corrErr
-                      activity: Failed to apply corrections.
-                    - kind: EndDialog
-                      id: endDlg_corrErr
-              elseActions: []
-
-            # Pass corrected data to FinanceStatementProcessor for Excel
-            - kind: BeginDialog
-              id: beginDlg_genXl
-              dialog: cree1_FinanceStatementAnalysisAgent.action.FinanceStatementProcessor
-              input:
-                kind: ActionInputBinding
-                binding:
-                  balance_sheet: =Topic.corrected_balance_sheet
-                  income_statement: =Topic.corrected_income_statement
-                  cash_flow: =Topic.corrected_cash_flow
-                  summary: =Topic.corrected_summary
-                  company_name: =Topic.corrected_company_name
-              output:
-                kind: ActionOutputBinding
-                binding:
-                  fileurl: Topic.fileurl
-                  filename: Topic.filename
-
-            - kind: SendActivity
-              id: sendMsg_dlRdy
-              activity: |-
-                Your report is ready: [{Topic.filename}]({Topic.fileurl})
-
-inputType:
-  properties:
-    job_id:
-      displayName: Job ID
-      description: Unique identifier for the extraction job
-      type: String
-
-    confidence:
-      displayName: Confidence JSON
-      description: JSON string with confidence levels and flagged rows for each statement
-      type: String
-
-    balance_sheet:
-      displayName: Balance Sheet
-      description: Extracted balance sheet JSON data
-      type: String
-
-    income_statement:
-      displayName: Income Statement
-      description: Extracted income statement JSON data
-      type: String
-
-    cash_flow:
-      displayName: Cash Flow
-      description: Extracted cash flow JSON data
-      type: String
-
-    summary:
-      displayName: Summary
-      description: Financial summary with key metrics
-      type: String
-
-    company_name:
-      displayName: Company Name
-      description: The company name extracted from the financial report
-      type: String
-
-    current_step_override:
-      displayName: Current Step Override
-      description: Used internally when navigating back to a previous step via ReplaceDialog
-      type: String
-
-    bs_corrections_override:
-      displayName: BS Corrections Override
-      description: Balance sheet corrections JSON passed during back-navigation
-      type: String
-
-    is_corrections_override:
-      displayName: IS Corrections Override
-      description: Income statement corrections JSON passed during back-navigation
-      type: String
-
-    cf_corrections_override:
-      displayName: CF Corrections Override
-      description: Cash flow corrections JSON passed during back-navigation
-      type: String
+inputType: {}
+outputType: {}

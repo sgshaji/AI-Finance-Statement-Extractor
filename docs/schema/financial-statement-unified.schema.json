@@ -1,0 +1,558 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/financial-statement-unified-v1.2.schema.json",
+  "title": "Unified Financial Statement Extraction Schema v1.2",
+  "description": "Production-hardened row-based schema for balance sheet, income statement, and cash flow extraction.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "document_metadata",
+    "statement_metadata",
+    "columns",
+    "rows",
+    "validation"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.2.0"
+    },
+
+    "document_metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_file_name",
+        "company_name",
+        "report_language",
+        "report_type"
+      ],
+      "properties": {
+        "source_file_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_file_hash": {
+          "type": ["string", "null"],
+          "description": "Optional file hash for traceability."
+        },
+        "company_name": {
+          "type": ["string", "null"]
+        },
+        "company_name_raw": {
+          "type": ["string", "null"]
+        },
+        "report_type": {
+          "type": "string",
+          "enum": [
+            "10-Q",
+            "10-K",
+            "annual_report",
+            "quarterly_report",
+            "interim_report",
+            "earnings_release",
+            "other"
+          ]
+        },
+        "report_language": {
+          "type": "string",
+          "pattern": "^[a-z]{2,3}(-[A-Z]{2})?$",
+          "description": "ISO 639-1/639-3 optionally followed by region, e.g. en, zh, en-US."
+        },
+        "source_country": {
+          "type": ["string", "null"],
+          "pattern": "^[A-Z]{2}$"
+        },
+        "source_exchange": {
+          "type": ["string", "null"]
+        },
+        "ticker": {
+          "type": ["string", "null"]
+        },
+        "identifier": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+
+    "statement_metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "statement_type",
+        "statement_title",
+        "currency",
+        "unit",
+        "page_range"
+      ],
+      "properties": {
+        "statement_type": {
+          "type": "string",
+          "enum": [
+            "balance_sheet",
+            "income_statement",
+            "cash_flow"
+          ]
+        },
+        "statement_title": {
+          "type": ["string", "null"]
+        },
+        "statement_title_raw": {
+          "type": ["string", "null"]
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$",
+          "description": "ISO 4217 currency code, e.g. USD, RMB/CNY should be normalized to CNY."
+        },
+        "currency_symbol": {
+          "type": ["string", "null"]
+        },
+        "unit": {
+          "type": "string",
+          "enum": [
+            "ones",
+            "thousands",
+            "millions",
+            "billions",
+            "other"
+          ]
+        },
+        "unit_raw": {
+          "type": ["string", "null"]
+        },
+        "is_consolidated": {
+          "type": ["boolean", "null"]
+        },
+        "is_audited": {
+          "type": ["boolean", "null"]
+        },
+        "page_range": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["start", "end"],
+          "properties": {
+            "start": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "end": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "bbox_coordinate_system": {
+          "type": "string",
+          "enum": [
+            "normalized_0_1",
+            "pdf_points",
+            "pixels"
+          ],
+          "default": "normalized_0_1"
+        }
+      }
+    },
+
+    "columns": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "column_index",
+          "label",
+          "period_type"
+        ],
+        "properties": {
+          "column_index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "label_raw": {
+            "type": ["string", "null"]
+          },
+          "period_type": {
+            "type": "string",
+            "enum": [
+              "instant",
+              "duration",
+              "quarter",
+              "year_to_date",
+              "annual",
+              "half_year",
+              "nine_months",
+              "other"
+            ]
+          },
+          "fiscal_year": {
+            "type": ["integer", "null"],
+            "minimum": 1900,
+            "maximum": 2500
+          },
+          "fiscal_quarter": {
+            "type": ["integer", "null"],
+            "minimum": 1,
+            "maximum": 4
+          },
+          "start_date": {
+            "type": ["string", "null"],
+            "format": "date"
+          },
+          "end_date": {
+            "type": ["string", "null"],
+            "format": "date"
+          },
+          "is_comparative": {
+            "type": ["boolean", "null"]
+          }
+        }
+      }
+    },
+
+    "rows": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/row"
+      }
+    },
+
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "validator_version",
+        "rule_set_version",
+        "validated_at",
+        "warnings",
+        "errors"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "passed_with_warnings",
+            "failed",
+            "not_run"
+          ]
+        },
+        "validator_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "rule_set_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "validation_run_id": {
+          "type": ["string", "null"]
+        },
+        "validated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/validationIssue"
+          }
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/validationIssue"
+          }
+        }
+      }
+    }
+  },
+
+  "$defs": {
+    "sectionEnum": {
+      "type": "string",
+      "enum": [
+        "assets",
+        "current_assets",
+        "non_current_assets",
+        "liabilities",
+        "current_liabilities",
+        "non_current_liabilities",
+        "equity",
+        "revenue",
+        "operating_expenses",
+        "non_operating",
+        "tax",
+        "eps",
+        "shares",
+        "operating_activities",
+        "investing_activities",
+        "financing_activities",
+        "cash_reconciliation",
+        "supplemental_disclosures",
+        "other"
+      ]
+    },
+
+    "canonicalGroupEnum": {
+      "type": ["string", "null"],
+      "enum": [
+        "cash",
+        "working_capital",
+        "assets",
+        "liabilities",
+        "equity",
+        "revenue",
+        "expenses",
+        "profitability",
+        "tax",
+        "eps",
+        "shares",
+        "operating_cash_flow",
+        "investing_cash_flow",
+        "financing_cash_flow",
+        "cash_reconciliation",
+        "supplemental",
+        "other",
+        null
+      ]
+    },
+
+    "bbox": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "width": {
+          "type": "number",
+          "minimum": 0
+        },
+        "height": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+
+    "valueCell": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "column_index",
+        "raw",
+        "normalized",
+        "is_null"
+      ],
+      "properties": {
+        "column_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "raw": {
+          "type": ["string", "null"]
+        },
+        "normalized": {
+          "type": ["number", "null"]
+        },
+        "is_null": {
+          "type": "boolean"
+        },
+        "is_zero": {
+          "type": ["boolean", "null"]
+        },
+        "value_kind": {
+          "type": ["string", "null"],
+          "enum": [
+            "currency",
+            "ratio",
+            "shares",
+            "percentage",
+            "other",
+            null
+          ]
+        },
+        "confidence": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "is_null": { "const": true }
+            },
+            "required": ["is_null"]
+          },
+          "then": {
+            "properties": {
+              "normalized": { "type": "null" }
+            }
+          }
+        }
+      ]
+    },
+
+    "row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "row_index",
+        "label_raw",
+        "label_language",
+        "canonical_key",
+        "row_type",
+        "indent_level",
+        "section",
+        "values"
+      ],
+      "properties": {
+        "row_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "label_raw": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label_normalized": {
+          "type": ["string", "null"]
+        },
+        "label_language": {
+          "type": "string",
+          "pattern": "^[a-z]{2,3}(-[A-Z]{2})?$"
+        },
+        "canonical_key": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$"
+        },
+        "canonical_group": {
+          "$ref": "#/$defs/canonicalGroupEnum"
+        },
+        "row_type": {
+          "type": "string",
+          "enum": [
+            "section_header",
+            "line_item",
+            "subtotal",
+            "total",
+            "note",
+            "metadata"
+          ]
+        },
+        "indent_level": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "section": {
+          "$ref": "#/$defs/sectionEnum"
+        },
+        "parent_canonical_key": {
+          "type": ["string", "null"],
+          "pattern": "^[a-z0-9_]+$"
+        },
+        "sign_hint": {
+          "type": ["string", "null"],
+          "enum": [
+            "positive",
+            "negative",
+            "mixed",
+            null
+          ]
+        },
+        "is_derived_total": {
+          "type": ["boolean", "null"]
+        },
+        "is_required_anchor": {
+          "type": ["boolean", "null"]
+        },
+        "source_page": {
+          "type": ["integer", "null"],
+          "minimum": 1
+        },
+        "source_bbox": {
+          "oneOf": [
+            { "$ref": "#/$defs/bbox" },
+            { "type": "null" }
+          ]
+        },
+        "values": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/valueCell"
+          }
+        }
+      }
+    },
+
+    "validationIssue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "message"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "severity": {
+          "type": ["string", "null"],
+          "enum": [
+            "info",
+            "warning",
+            "error",
+            null
+          ]
+        },
+        "row_index": {
+          "type": ["integer", "null"]
+        },
+        "canonical_key": {
+          "type": ["string", "null"]
+        },
+        "column_index": {
+          "type": ["integer", "null"]
+        },
+        "expected": {
+          "type": ["number", "null"]
+        },
+        "actual": {
+          "type": ["number", "null"]
+        },
+        "difference": {
+          "type": ["number", "null"]
+        }
+      }
+    }
+  }
+}

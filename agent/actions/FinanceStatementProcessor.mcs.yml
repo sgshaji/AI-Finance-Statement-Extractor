@@ -1,0 +1,43 @@
+# Name: Finance Statement Processor
+kind: TaskDialog
+inputs:
+  - kind: AutomaticTaskInput
+    propertyName: balance_sheet
+    description: The extracted balance sheet data from the financial statement analysis, including assets, liabilities, and equity line items with their values.
+    entity: StringPrebuiltEntity
+
+  - kind: AutomaticTaskInput
+    propertyName: income_statement
+    description: The extracted income statement data from the financial statement analysis, including revenue, expenses, and profit/loss line items with their values.
+    entity: StringPrebuiltEntity
+
+  - kind: AutomaticTaskInput
+    propertyName: cash_flow
+    description: The extracted cash flow statement data from the financial statement analysis, including operating, investing, and financing activities with their values.
+    entity: StringPrebuiltEntity
+
+  - kind: AutomaticTaskInput
+    propertyName: summary
+    description: A summary of the financial statements including key financial metrics, totals, and any notable observations from the analysis.
+    entity: StringPrebuiltEntity
+
+  - kind: AutomaticTaskInput
+    propertyName: company_name
+    description: The name of the company whose financial statements were analyzed.
+    entity: StringPrebuiltEntity
+
+modelDisplayName: Finance Statement Processor
+modelDescription: Generates an Excel file with four worksheets (Summary, Balance Sheet, Income Statement, Cash Flow Statement) from previously extracted financial statement data. Use this action after the financial statements have been extracted and the user requests an Excel report or file export.
+
+outputs:
+  - propertyName: fileurl
+    description: The URL link to the generated Excel file stored in SharePoint or OneDrive. Provide this to the user so they can download or open the file.
+
+  - propertyName: filename
+    description: The name of the generated Excel file including the file extension.
+
+action:
+  kind: InvokeFlowTaskAction
+  flowId: 36f9d59e-9497-c766-562f-9af016d046a9
+
+outputMode: All

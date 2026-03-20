@@ -1,0 +1,14 @@
+# Name: Conversation Start
+# This system topic triggers when the agent receives an Activity indicating the beginning of a new conversation. If you do not want the agent to initiate the conversation, disable this topic.
+kind: AdaptiveDialog
+beginDialog:
+  kind: OnConversationStart
+  id: main
+  actions:
+    - kind: SendActivity
+      id: sendMessage_M0LuhV
+      activity:
+        text:
+          - Hello, I'm {System.Bot.Name}. I extract Balance Sheet, Income Statement, and Cash Flow Statement data from financial reports. Upload a PDF financial report to get started.
+        speak:
+          - Hello, I'm {System.Bot.Name}. I extract financial statements from PDF reports. Please upload a PDF financial report to get started.

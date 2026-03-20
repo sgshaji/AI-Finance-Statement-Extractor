@@ -15,8 +15,9 @@ Public API (re-exported for convenience):
 """
 
 from .azure_cu_client import submit_document, poll_result
-from .statement_detector import locate_statements, build_statement_json, build_summary
+from .statement_detector import locate_statements, build_statement_json, build_summary, validate_totals
 from .llm_reconciler import reconcile
+from .confidence_scorer import score_statement, flag_rows
 
 __all__ = [
     "submit_document",
@@ -24,5 +25,8 @@ __all__ = [
     "locate_statements",
     "build_statement_json",
     "build_summary",
+    "validate_totals",
     "reconcile",
+    "score_statement",
+    "flag_rows",
 ]

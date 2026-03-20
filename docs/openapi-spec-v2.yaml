@@ -1,0 +1,281 @@
+swagger: '2.0'
+info:
+  title: Financial Statement Extractor
+  description: >-
+    Extracts financial statements from uploaded PDF reports with HITL review
+    support.
+  version: 3.0.0
+host: financial-statement-extractor.azurewebsites.net
+basePath: /api
+schemes:
+  - https
+produces:
+  - application/json
+consumes:
+  - application/json
+paths:
+  /extract:
+    post:
+      operationId: submitExtraction
+      summary: Submit a PDF for financial statement extraction
+      description: >-
+        Uploads a PDF and starts extraction. Returns a jobId to poll for results.
+      consumes:
+        - multipart/form-data
+      parameters:
+        - name: enrichment
+          in: query
+          required: false
+          type: string
+          default: 'true'
+          enum:
+            - 'true'
+            - 'false'
+        - name: file
+          in: formData
+          type: file
+          required: true
+          description: The PDF file to extract financial statements from
+        - name: fileName
+          in: formData
+          type: string
+          required: true
+          description: Original file name of the uploaded PDF
+      responses:
+        '202':
+          description: Extraction started
+          schema:
+            type: object
+            properties:
+              jobId:
+                type: string
+                description: The job ID to poll for results
+              status:
+                type: string
+                description: Job status (processing)
+  /extract/status/{jobId}:
+    get:
+      operationId: getExtractionStatus
+      summary: Poll for extraction results
+      description: >-
+        Returns the current status and results of an extraction job. Includes
+        confidence scores for HITL review.
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          type: string
+          description: The job ID from submitExtraction
+      responses:
+        '200':
+          description: Extraction status and results
+          schema:
+            type: object
+            properties:
+              status:
+                type: string
+                description: 'Job status: processing, completed, or failed'
+              company_name:
+                type: string
+                description: Company name extracted from the report
+              summary:
+                type: string
+                description: JSON string with extraction summary
+              balance_sheet:
+                type: string
+                description: JSON string with Balance Sheet data (v1.2 schema)
+              income_statement:
+                type: string
+                description: JSON string with Income Statement data (v1.2 schema)
+              cash_flow:
+                type: string
+                description: JSON string with Cash Flow Statement data (v1.2 schema)
+              confidence:
+                type: string
+                description: >-
+                  JSON string with per-statement confidence scores, signal
+                  details, and flagged row indices
+              job_id:
+                type: string
+                description: The job ID, used by HITL review API endpoints
+  /build-review-card:
+    post:
+      operationId: buildReviewCard
+      summary: Build an Adaptive Card for HITL statement review
+      description: >-
+        Generates an Adaptive Card JSON payload for the navigator or a specific
+        statement review. Cards include editable Input.Text and Input.ChoiceSet
+        fields for analyst corrections.
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            type: object
+            required:
+              - job_id
+              - card_type
+            properties:
+              job_id:
+                type: string
+                description: The extraction job ID
+              card_type:
+                type: string
+                description: Type of card to build
+                enum:
+                  - navigator
+                  - statement
+              statement_type:
+                type: string
+                description: Statement type (required when card_type is 'statement')
+                enum:
+                  - balance_sheet
+                  - income_statement
+                  - cash_flow
+              step_num:
+                type: integer
+                description: Current wizard step number (1-based)
+              total_steps:
+                type: integer
+                description: Total number of wizard steps
+              editable:
+                type: boolean
+                description: >-
+                  Whether the card should have editable input fields (false for
+                  high-confidence read-only mode)
+                default: true
+              corrections:
+                type: object
+                description: >-
+                  Previous corrections for this statement (for pre-populating
+                  fields on back-navigation)
+      responses:
+        '200':
+          description: Adaptive Card JSON
+          schema:
+            type: object
+            properties:
+              card_json:
+                type: string
+                description: The Adaptive Card JSON payload to display
+  /parse-card-submission:
+    post:
+      operationId: parseCardSubmission
+      summary: Parse an Adaptive Card submission into corrections
+      description: >-
+        Parses the flat key-value payload from an Adaptive Card submit action,
+        diffs against the original extraction, and returns only the fields that
+        changed.
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            type: object
+            required:
+              - job_id
+              - statement_type
+              - payload
+            properties:
+              job_id:
+                type: string
+                description: The extraction job ID
+              statement_type:
+                type: string
+                description: Which statement the card was for
+                enum:
+                  - balance_sheet
+                  - income_statement
+                  - cash_flow
+              payload:
+                type: object
+                description: >-
+                  The flat key-value payload from the Adaptive Card submit (e.g.
+                  {row_5_label: 'Trade debtors', action: 'next'})
+      responses:
+        '200':
+          description: Parsed action and corrections
+          schema:
+            type: object
+            properties:
+              action:
+                type: string
+                description: >-
+                  The action taken: next, previous, submit, edit, start_review,
+                  or skip_review
+              corrections:
+                type: string
+                description: >-
+                  JSON string of corrections diff — only fields that changed
+                  from the original extraction
+  /apply-corrections:
+    post:
+      operationId: applyCorrections
+      summary: Apply analyst corrections and return final data for Excel generation
+      description: >-
+        Applies all accumulated corrections from the HITL review to the cached
+        extraction result, re-parses values, and returns the corrected statement
+        JSONs ready for Excel generation.
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            type: object
+            required:
+              - job_id
+            properties:
+              job_id:
+                type: string
+                description: The extraction job ID
+              corrections:
+                type: object
+                description: >-
+                  All corrections keyed by statement type, e.g. {balance_sheet:
+                  {row_5: {label: 'Fixed'}}, income_statement: {}, cash_flow:
+                  {}}
+      responses:
+        '200':
+          description: Corrected extraction data
+          schema:
+            type: object
+            properties:
+              status:
+                type: string
+                description: Always 'corrected'
+              company_name:
+                type: string
+                description: Company name
+              summary:
+                type: string
+                description: JSON string with extraction summary
+              balance_sheet:
+                type: string
+                description: JSON string with corrected Balance Sheet data
+              income_statement:
+                type: string
+                description: JSON string with corrected Income Statement data
+              cash_flow:
+                type: string
+                description: JSON string with corrected Cash Flow Statement data
+  /health:
+    get:
+      operationId: healthCheck
+      summary: Health check
+      responses:
+        '200':
+          description: Healthy
+          schema:
+            type: object
+            properties:
+              status:
+                type: string
+              version:
+                type: string
+securityDefinitions:
+  api_key:
+    type: apiKey
+    in: query
+    name: code
+security:
+  - api_key: []

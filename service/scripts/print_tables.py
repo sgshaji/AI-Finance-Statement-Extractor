@@ -25,35 +25,47 @@ OUTPUT_DIR = Path(__file__).resolve().parent.parent / "output"
 def print_table(stype: str) -> None:
     """Print one statement as a formatted ASCII table."""
     stmt = json.loads((OUTPUT_DIR / f"{stype}.json").read_text(encoding="utf-8"))
-    cells = stmt["cells"]
-    grid: dict = {}
-    for c in cells:
-        grid.setdefault(c["row"], {})[c["col"]] = c["content"]
-
+    rows = stmt["rows"]
     cols = stmt["columns"]
-    c0 = cols[0] if len(cols) > 0 else "Col 1"
-    c1 = cols[1] if len(cols) > 1 else "Col 2"
 
     title = stype.upper().replace("_", " ")
-    pages = f"pages {stmt['start_page']}-{stmt['end_page']}"
-    nrows = len(grid)
+    page_range = stmt.get("page_range", {})
+    pages = f"pages {page_range.get('start', '?')}-{page_range.get('end', '?')}"
+    nrows = len(rows)
 
     sep = "-" * 120
     print(f"\n{'='*120}")
     print(f"  {title}   |   {pages}   |   {nrows} rows")
     print(f"{'='*120}")
-    print(f"  {'Label':<68}  {c0:>22}  {c1:>22}")
+
+    # Column headers
+    col_widths = [22] * len(cols)
+    header = f"  {'Label':<68}"
+    for i, c in enumerate(cols):
+        short_name = c[:col_widths[i]]
+        header += f"  {short_name:>{col_widths[i]}}"
+    print(header)
     print(sep)
-    for r in sorted(grid):
-        label = grid[r].get(0, "")
-        v1    = grid[r].get(1, "")
-        v2    = grid[r].get(2, "")
-        # Section header rows (no values) are indented slightly more
-        indent = "    " if not v1 and not v2 else "  "
-        print(f"{indent}{label:<68}  {v1:>22}  {v2:>22}")
+
+    for row in rows:
+        label = row["label"]
+        values = row.get("values", [])
+        indent = "  " * row.get("indent_level", 0)
+        prefix = "  "
+
+        # Format values
+        val_strs = []
+        for v in values:
+            val_strs.append(v if v else "")
+
+        line = f"{prefix}{indent}{label:<{68 - len(indent)}}"
+        for i, v in enumerate(val_strs):
+            w = col_widths[i] if i < len(col_widths) else 22
+            line += f"  {v:>{w}}"
+        print(line)
     print(sep)
 
 
-
-for s in ["balance_sheet", "income_statement", "cash_flow"]:
-    print_table(s)
+if __name__ == "__main__":
+    for s in ["balance_sheet", "income_statement", "cash_flow"]:
+        print_table(s)

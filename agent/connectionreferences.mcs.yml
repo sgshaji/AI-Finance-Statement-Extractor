@@ -1,0 +1,3 @@
+﻿connectionReferences:
+  - connectionReferenceLogicalName: cree1_FinanceStatementAnalysisAgent.shared_financials-20extractor-5f60bfe6cc042375d2-5f547557861498fd2f.4854621a0b0a42ae811068346c539840
+    connectorId: /providers/Microsoft.PowerApps/apis/shared_financials-20extractor-5f60bfe6cc042375d2-5f547557861498fd2f
