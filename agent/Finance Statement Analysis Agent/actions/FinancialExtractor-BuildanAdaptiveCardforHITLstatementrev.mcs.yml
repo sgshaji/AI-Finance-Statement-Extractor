@@ -1,0 +1,18 @@
+# Name: Financial Extractor - Build an Adaptive Card for HITL statement review
+kind: TaskDialog
+modelDisplayName: Build an Adaptive Card for HITL statement review
+modelDescription: Generates an Adaptive Card JSON payload. On first call (empty sessionState) returns the navigator card and initialises session state. On subsequent calls uses session state to determine which statement card to build.
+outputs:
+  - propertyName: cardJson
+
+  - propertyName: sessionState
+
+action:
+  kind: InvokeConnectorTaskAction
+  connectionReference: cree1_FinanceStatementAnalysisAgent.shared_cree1-5ffinancial-20extractor-5f60bfe6cc042375d2.d3c0a08e298a466ca3ac729ffa60e337
+  connectionProperties:
+    mode: Invoker
+
+  operationId: buildReviewCard
+
+outputMode: All

@@ -1,0 +1,18 @@
+# Name: jobId
+# jobId
+<<<<<<< 
+# Name: jobId
+kind: Variable
+name: jobId
+scope: Conversation
+isExternalInitializationAllowed: false
+isOutputToExternalCallers: true
+initializationTimeoutInMilliseconds: 0
+=======
+# Name: jobId
+kind: Variable
+name: jobId
+scope: Conversation
+isExternalInitializationAllowed: false
+isOutputToExternalCallers: true
+initializationTimeoutInMilliseconds: 0>>>>>>> 

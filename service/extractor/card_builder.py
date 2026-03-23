@@ -1,5 +1,6 @@
 """Adaptive Card JSON builder for financial statement HITL review."""
 
+import json
 import re
 from typing import Any
 
@@ -28,7 +29,7 @@ ROW_TYPE_CHOICES = [
     {"title": "Total", "value": "total"},
 ]
 
-MAX_CLEAN_ROWS_SHOWN = 15
+EDIT_ALL_PAGE_SIZE = 20
 
 
 # ─── Navigator Card ─────────────────────────────────────────────────────────
@@ -219,13 +220,22 @@ def _build_editable_row(row: dict, columns: list, corrections: dict, flag_text: 
     return {"type": "Container", "separator": True, "items": items}
 
 
-def _build_readonly_row(row: dict, columns: list) -> dict:
-    """Build a read-only container for a single row."""
+def _build_inline_readonly_row(row: dict, columns: list) -> dict:
+    """Build a compact read-only row preserving positional context.
+
+    Section headers, subtotals, and totals are rendered bold so the
+    financial statement structure remains visible.
+    """
+    row_type = row.get("row_type", "line_item")
+    is_emphasis = row_type in ("section_header", "subtotal", "total")
+    weight = "Bolder" if is_emphasis else "Default"
+
+    label_text = row.get("label_raw", "") or ""
     cols = [
         {
             "type": "Column",
             "width": "stretch",
-            "items": [{"type": "TextBlock", "text": row.get("label_raw", ""), "weight": "Bolder"}],
+            "items": [{"type": "TextBlock", "text": label_text, "weight": weight}],
         }
     ]
     for col in columns:
@@ -235,9 +245,9 @@ def _build_readonly_row(row: dict, columns: list) -> dict:
         cols.append({
             "type": "Column",
             "width": "auto",
-            "items": [{"type": "TextBlock", "text": raw or ""}],
+            "items": [{"type": "TextBlock", "text": raw or "", "weight": weight}],
         })
-    return {"type": "Container", "separator": True, "items": [{"type": "ColumnSet", "columns": cols}]}
+    return {"type": "ColumnSet", "columns": cols, "separator": row_type == "section_header"}
 
 
 def build_statement_review_card(
@@ -248,8 +258,17 @@ def build_statement_review_card(
     step_num: int,
     total_steps: int,
     editable: bool = True,
+    edit_all: bool = False,
+    edit_all_page: int = 0,
 ) -> dict:
-    """Build an editable (or read-only) review card for a single statement."""
+    """Build a review card for a single statement.
+
+    Rendering modes:
+      - Standard (editable=True, edit_all=False): all rows in original order,
+        flagged rows editable with warning styling, clean rows compact read-only.
+      - Edit All (edit_all=True): paginated, ALL rows editable.
+      - Read-only (editable=False): all rows as compact read-only text.
+    """
 
     display_name = STATEMENT_DISPLAY_NAMES.get(statement_type, statement_type)
     rows = statement_json.get("rows", [])
@@ -297,64 +316,72 @@ def build_statement_review_card(
         actions = _build_navigation_actions(step_num, total_steps, editable)
         return _wrap_card(body, actions)
 
-    # Split rows
-    flagged_rows = [r for r in rows if r["row_index"] in flagged_indices]
-    clean_rows = [r for r in rows if r["row_index"] not in flagged_indices]
+    total_pages = max(1, -(-len(rows) // EDIT_ALL_PAGE_SIZE))  # ceil division
 
-    if editable:
-        # ── Flagged rows section ──
-        if flagged_rows:
-            body.append({
-                "type": "TextBlock",
-                "text": f"\u26a0 FLAGGED ITEMS ({len(flagged_rows)})",
-                "weight": "Bolder",
-                "color": "Warning",
-            })
-            flagged_items = []
-            for row in flagged_rows:
-                reason = _flag_reason(row, validation) or "Review needed"
-                flagged_items.append(_build_editable_row(row, columns, corrections, reason))
-            body.append({"type": "Container", "style": "warning", "items": flagged_items})
+    if editable and edit_all:
+        # ── Edit All mode: paginated, every row editable ──
+        edit_all_page = min(edit_all_page, total_pages - 1)
+        page_start_idx = edit_all_page * EDIT_ALL_PAGE_SIZE
+        page_end_idx = min(page_start_idx + EDIT_ALL_PAGE_SIZE, len(rows))
+        page_rows = rows[page_start_idx:page_end_idx]
 
-        # ── Clean rows section ──
-        if clean_rows:
-            body.append({
-                "type": "TextBlock",
-                "text": f"\u2713 CLEAN ROWS ({len(clean_rows)})",
-                "weight": "Bolder",
-                "color": "Good",
-            })
-            shown_clean = clean_rows[:MAX_CLEAN_ROWS_SHOWN]
-            inner_body: list[dict[str, Any]] = []
-            for row in shown_clean:
-                inner_body.append(_build_editable_row(row, columns, corrections, None))
-            if len(clean_rows) > MAX_CLEAN_ROWS_SHOWN:
-                inner_body.append({
-                    "type": "TextBlock",
-                    "text": f"Showing 15 of {len(clean_rows)} clean rows",
-                    "isSubtle": True,
-                })
-            body.append({
-                "type": "ActionSet",
-                "actions": [
-                    {
-                        "type": "Action.ShowCard",
-                        "title": "View/Edit All \u25bc",
-                        "card": {"type": "AdaptiveCard", "body": inner_body},
-                    }
-                ],
-            })
-    else:
-        # Read-only mode — all rows rendered as readonly
+        body.append({
+            "type": "TextBlock",
+            "text": f"Editing rows {page_start_idx + 1}\u2013{page_end_idx} of {len(rows)}",
+            "isSubtle": True,
+        })
+        for row in page_rows:
+            flag_text = None
+            if row["row_index"] in flagged_indices:
+                flag_text = _flag_reason(row, validation) or "Review needed"
+            body.append(_build_editable_row(row, columns, corrections, flag_text))
+
+    elif editable:
+        # ── Standard mode: inline flagged (editable) + clean (read-only) ──
         for row in rows:
-            body.append(_build_readonly_row(row, columns))
+            if row["row_index"] in flagged_indices:
+                reason = _flag_reason(row, validation) or "Review needed"
+                body.append(_build_editable_row(row, columns, corrections, reason))
+            else:
+                body.append(_build_inline_readonly_row(row, columns))
 
-    actions = _build_navigation_actions(step_num, total_steps, editable)
+    else:
+        # ── Read-only mode ──
+        for row in rows:
+            body.append(_build_inline_readonly_row(row, columns))
+
+    actions = _build_navigation_actions(
+        step_num, total_steps, editable,
+        edit_all=edit_all, edit_all_page=edit_all_page, total_pages=total_pages,
+    )
     return _wrap_card(body, actions)
 
 
-def _build_navigation_actions(step_num: int, total_steps: int, editable: bool) -> list:
+def _build_navigation_actions(
+    step_num: int,
+    total_steps: int,
+    editable: bool,
+    *,
+    edit_all: bool = False,
+    edit_all_page: int = 0,
+    total_pages: int = 1,
+) -> list:
     actions = []
+
+    # Edit All pagination
+    if edit_all:
+        if edit_all_page > 0:
+            actions.append({
+                "type": "Action.Submit", "title": "\u2190 Page",
+                "data": {"action": "edit_all_page_prev"},
+            })
+        if edit_all_page < total_pages - 1:
+            actions.append({
+                "type": "Action.Submit", "title": "Page \u2192",
+                "data": {"action": "edit_all_page_next"},
+            })
+
+    # Statement navigation
     if step_num > 1:
         actions.append({"type": "Action.Submit", "title": "\u2190 Previous", "data": {"action": "previous"}})
     if step_num < total_steps:
@@ -365,8 +392,12 @@ def _build_navigation_actions(step_num: int, total_steps: int, editable: bool) -
             "title": "Submit & Generate Excel",
             "data": {"action": "submit"},
         })
+
+    # Mode switches
+    if editable and not edit_all:
+        actions.append({"type": "Action.Submit", "title": "Edit All", "data": {"action": "edit_all"}})
     if not editable:
-        actions.append({"type": "Action.Submit", "title": "Edit", "data": {"action": "edit"}})
+        actions.append({"type": "Action.Submit", "title": "Edit Anyway", "data": {"action": "edit_anyway"}})
     return actions
 
 
@@ -433,3 +464,143 @@ def _get_original_value(row: dict, field: str) -> str:
             return values[col_idx].get("raw", "") or ""
         return ""
     return ""
+
+
+# ─── Session State Management ────────────────────────────────────────────────
+
+STATEMENT_ORDER = ["balance_sheet", "income_statement", "cash_flow"]
+
+
+def init_session_state(confidence: dict, job_id: str = "",
+                       available_statements: list[str] | None = None) -> str:
+    """Create the initial session state from confidence data.
+
+    Determines which statements actually exist and builds an ordered list.
+    A statement is included only if it appears in *available_statements*
+    (when provided) or its confidence level is not 'not_found'.
+    Returns a JSON string that the topic stores opaquely.
+    """
+    if available_statements is not None:
+        statements = [
+            stype for stype in STATEMENT_ORDER
+            if stype in available_statements
+        ]
+    else:
+        statements = [
+            stype for stype in STATEMENT_ORDER
+            if confidence.get(stype, {}).get("level") != "not_found"
+            and confidence.get(stype) is not None
+        ]
+    state = {
+        "jobId": job_id,
+        "phase": "navigator",
+        "step": 0,
+        "statements": statements,
+        "corrections": {},
+        "editable": False,
+        "editAll": False,
+        "editAllPage": 0,
+    }
+    return json.dumps(state, ensure_ascii=False)
+
+
+def advance_session_state(
+    session_state_str: str,
+    raw_payload: dict,
+    statement_json: dict | None = None,
+) -> tuple[str, str]:
+    """Advance the session state machine based on a card submit payload.
+
+    Args:
+        session_state_str: Current session state JSON string.
+        raw_payload: The flat key-value payload from the Adaptive Card submit.
+        statement_json: The v1.2 statement dict for the current step
+                        (needed to diff corrections). None for navigator actions.
+
+    Returns:
+        (topic_action, updated_session_state_str) where topic_action is one of:
+          - "continue": show another card (loop back)
+          - "done": apply corrections and export
+          - "skip": export without corrections
+    """
+    state = json.loads(session_state_str)
+    if not isinstance(raw_payload, dict):
+        raw_payload = {}
+    raw_action = raw_payload.get("action", "")
+    phase = state.get("phase", "navigator")
+    step = state.get("step", 0)
+    statements = state.get("statements", [])
+    total_steps = len(statements)
+
+    # ── Navigator phase ──
+    if phase == "navigator":
+        if raw_action == "skip_review":
+            return "skip", json.dumps(state, ensure_ascii=False)
+        # start_review → advance to step 1
+        state["phase"] = "review"
+        state["step"] = 1
+        state["editable"] = False
+        state["editAll"] = False
+        state["editAllPage"] = 0
+        return "continue", json.dumps(state, ensure_ascii=False)
+
+    # ── Review phase ──
+    # First, extract corrections from the card payload for the current statement
+    current_stype = statements[step - 1] if 0 < step <= total_steps else None
+
+    if statement_json is not None and current_stype:
+        _action, new_corrections = parse_card_submission(raw_payload, statement_json)
+        # Merge new corrections into accumulated corrections for this statement
+        if new_corrections:
+            if current_stype not in state["corrections"]:
+                state["corrections"][current_stype] = {}
+            for row_key, fields in new_corrections.items():
+                if row_key not in state["corrections"][current_stype]:
+                    state["corrections"][current_stype][row_key] = {}
+                state["corrections"][current_stype][row_key].update(fields)
+
+    # Now handle the action
+    if raw_action == "next":
+        if step >= total_steps:
+            # Past the last statement → done
+            state["phase"] = "export"
+            return "done", json.dumps(state, ensure_ascii=False)
+        state["step"] = step + 1
+        state["editable"] = False
+        state["editAll"] = False
+        state["editAllPage"] = 0
+        return "continue", json.dumps(state, ensure_ascii=False)
+
+    if raw_action == "previous":
+        state["step"] = max(1, step - 1)
+        state["editable"] = False
+        state["editAll"] = False
+        state["editAllPage"] = 0
+        return "continue", json.dumps(state, ensure_ascii=False)
+
+    if raw_action == "submit":
+        state["phase"] = "export"
+        return "done", json.dumps(state, ensure_ascii=False)
+
+    if raw_action in ("edit", "edit_anyway"):
+        state["editable"] = True
+        state["editAll"] = False
+        state["editAllPage"] = 0
+        return "continue", json.dumps(state, ensure_ascii=False)
+
+    if raw_action == "edit_all":
+        state["editable"] = True
+        state["editAll"] = True
+        state["editAllPage"] = 0
+        return "continue", json.dumps(state, ensure_ascii=False)
+
+    if raw_action == "edit_all_page_next":
+        state["editAllPage"] = state.get("editAllPage", 0) + 1
+        return "continue", json.dumps(state, ensure_ascii=False)
+
+    if raw_action == "edit_all_page_prev":
+        state["editAllPage"] = max(0, state.get("editAllPage", 0) - 1)
+        return "continue", json.dumps(state, ensure_ascii=False)
+
+    # Unknown action — treat as continue (safe fallback)
+    return "continue", json.dumps(state, ensure_ascii=False)

@@ -1,0 +1,80 @@
+# Name: Document Processor
+kind: AdaptiveDialog
+modelDescription: This topic handles the data extraction from the user provided finance statement
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main
+  intent: {}
+  actions:
+    - kind: SendActivity
+      id: sendActivity_hrvee2
+      activity: Processing your financial report. This may take up to a minute...
+
+    - kind: BeginDialog
+      id: cLd1Cl
+      input:
+        binding:
+          file: =First(System.Activity.Attachments).Value
+          fileName: =First(System.Activity.Attachments).Name
+
+      dialog: cree1_FinanceStatementAnalysisAgent.action.FinancialExtractor-SubmitaPDFforfinancialstatementextract
+      output:
+        binding:
+          jobId: Topic.jobId
+          status: Topic.status
+
+    - kind: SendActivity
+      id: sendActivity_SVgxmt
+      activity: "Job ID: {Topic.jobId}"
+
+    - kind: ConditionGroup
+      id: conditionGroup_nyVCKS
+      conditions:
+        - id: conditionItem_JWPXNA
+          condition: =Topic.status = "processing"
+          actions:
+            - kind: SendActivity
+              id: sendActivity_rRvZvZ
+              activity: Still extracting, please wait...
+
+            - kind: InvokeFlowAction
+              id: invokeFlowAction_UUkn6v
+              input: {}
+              output: {}
+              flowId: 8997e33f-5c86-55cd-708c-8818dff10d9e
+
+            - kind: BeginDialog
+              id: beginDialog_poll
+              input: {}
+              dialog: cree1_FinanceStatementAnalysisAgent.action.FinancialExtractor-Pollforextractionresults
+              output:
+                binding:
+                  balance_sheet: Topic.balance_sheet
+                  cash_flow: Topic.cash_flow
+                  company_name: Topic.company_name
+                  income_statement: Topic.income_statement
+                  status: Topic.status
+                  summary: Topic.summary
+
+            - kind: GotoAction
+              id: goto_pollLoop
+              actionId: conditionGroup_nyVCKS
+
+    - kind: BeginDialog
+      id: KhYjJ0
+      input: {}
+      dialog: cree1_FinanceStatementAnalysisAgent.action.FinanceStatementProcessor
+      output:
+        binding:
+          filename: Topic.filename
+          fileurl: Topic.fileurl
+
+    - kind: SendActivity
+      id: sendActivity_download
+      activity: "Your report is ready: **[{Topic.filename}]({Topic.fileurl})**"
+
+    - kind: CancelAllDialogs
+      id: e8MfIK
+
+inputType: {}
+outputType: {}

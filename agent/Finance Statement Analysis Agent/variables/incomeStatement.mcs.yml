@@ -1,0 +1,18 @@
+# Name: incomeStatement
+# incomeStatement
+<<<<<<< 
+# Name: incomeStatement
+kind: Variable
+name: incomeStatement
+scope: Conversation
+isExternalInitializationAllowed: false
+isOutputToExternalCallers: true
+initializationTimeoutInMilliseconds: 0
+=======
+# Name: incomeStatement
+kind: Variable
+name: incomeStatement
+scope: Conversation
+isExternalInitializationAllowed: true
+isOutputToExternalCallers: false
+initializationTimeoutInMilliseconds: 0>>>>>>> 

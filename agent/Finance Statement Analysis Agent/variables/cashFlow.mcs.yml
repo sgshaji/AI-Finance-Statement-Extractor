@@ -1,0 +1,18 @@
+# Name: cashFlow
+# cashFlow
+<<<<<<< 
+# Name: cashFlow
+kind: Variable
+name: cashFlow
+scope: Conversation
+isExternalInitializationAllowed: false
+isOutputToExternalCallers: true
+initializationTimeoutInMilliseconds: 0
+=======
+# Name: cashFlow
+kind: Variable
+name: cashFlow
+scope: Conversation
+isExternalInitializationAllowed: true
+isOutputToExternalCallers: false
+initializationTimeoutInMilliseconds: 0>>>>>>> 

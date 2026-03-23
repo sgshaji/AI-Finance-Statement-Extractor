@@ -1,0 +1,13 @@
+# Name: Work IQ Copilot (Preview)
+kind: TaskDialog
+modelDisplayName: Work IQ Copilot (Preview)
+action:
+  kind: InvokeExternalAgentTaskAction
+  connectionReference: cree1_FinanceStatementAnalysisAgent.shared_a365copilotchatmcp.faee38bb680e46e0a54499a411171423
+  connectionProperties:
+    mode: Invoker
+
+  operationDetails:
+    kind: ModelContextProtocolMetadata
+    operationId: mcp_m365copilot
+    knownTools:

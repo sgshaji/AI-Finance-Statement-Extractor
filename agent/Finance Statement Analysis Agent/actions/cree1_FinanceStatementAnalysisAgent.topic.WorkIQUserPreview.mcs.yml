@@ -1,0 +1,13 @@
+# Name: Work IQ User (Preview)
+kind: TaskDialog
+modelDisplayName: Work IQ User (Preview)
+action:
+  kind: InvokeExternalAgentTaskAction
+  connectionReference: cree1_FinanceStatementAnalysisAgent.shared_a365memcp.shared-a365memcp-f5273f1e-57a1-4641-b20f-5f53a8f2d782
+  connectionProperties:
+    mode: Invoker
+
+  operationDetails:
+    kind: ModelContextProtocolMetadata
+    operationId: mcp_MeServer
+    knownTools:

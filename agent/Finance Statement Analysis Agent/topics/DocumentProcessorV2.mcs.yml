@@ -1,3 +1,4 @@
+# Name: Document ProcessorV2
 kind: AdaptiveDialog
 modelDescription: This topic handles the data extraction from the user provided finance statement
 beginDialog:
@@ -15,20 +16,16 @@ beginDialog:
         binding:
           file: =First(System.Activity.Attachments).Value
           fileName: =First(System.Activity.Attachments).Name
+
       dialog: cree1_FinanceStatementAnalysisAgent.action.FinancialExtractor-SubmitaPDFforfinancialstatementextract
       output:
         binding:
-          jobId: Topic.jobId
+          jobId: Global.jobId
           status: Topic.status
-
-    - kind: SetVariable
-      id: setVar_globalJobId
-      variable: Global.job_id
-      value: =Topic.jobId
 
     - kind: SendActivity
       id: sendActivity_SVgxmt
-      activity: "Job ID: {Topic.jobId}"
+      activity: "Job ID: {Global.jobId}"
 
     - kind: ConditionGroup
       id: conditionGroup_nyVCKS
@@ -50,15 +47,17 @@ beginDialog:
               id: beginDialog_poll
               input:
                 binding:
-                  jobId: =Topic.jobId
+                  jobId: =Global.jobId
+
               dialog: cree1_FinanceStatementAnalysisAgent.action.FinancialExtractor-Pollforextractionresults
               output:
                 binding:
-                  balance_sheet: Global.balance_sheet
-                  cash_flow: Global.cash_flow
-                  company_name: Global.company_name
+                  balanceSheet: Global.balanceSheet
+                  cashFlow: Global.cashFlow
+                  companyName: Global.companyName
                   confidence: Global.confidence
-                  income_statement: Global.income_statement
+                  incomeStatement: Global.incomeStatement
+                  jobId: Global.jobId
                   status: Topic.status
                   summary: Global.summary
 
@@ -66,25 +65,9 @@ beginDialog:
               id: goto_pollLoop
               actionId: conditionGroup_nyVCKS
 
-    - kind: ConditionGroup
-      id: conditionGroup_checkFail
-      conditions:
-        - id: conditionItem_failed
-          condition: =Topic.status = "failed"
-          actions:
-            - kind: SendActivity
-              id: sendActivity_failed
-              activity: Extraction failed. Please try uploading the file again.
-            - kind: EndDialog
-              id: endDialog_failed
-
-    - kind: SendActivity
-      id: sendActivity_results
-      activity: "Extraction complete for **{Global.company_name}**. Launching review..."
-
     - kind: BeginDialog
-      id: beginDlg_hitlReview
-      dialog: cree1_FinanceStatementAnalysisAgent.topic.HITLReview
+      id: ZYN2by
+      dialog: cree1_FinanceStatementAnalysisAgent.topic.HITLReview_wX5
 
     - kind: CancelAllDialogs
       id: e8MfIK

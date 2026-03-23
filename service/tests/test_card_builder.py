@@ -1,10 +1,13 @@
 """Tests for Adaptive Card builder module."""
 
+import json
 import pytest
 from extractor.card_builder import (
     build_navigator_card,
     build_statement_review_card,
     parse_card_submission,
+    init_session_state,
+    advance_session_state,
 )
 
 
@@ -218,31 +221,111 @@ class TestStatementReviewCard:
         row2_ids = [i for i in all_ids if i.startswith("row_2_")]
         assert len(row2_ids) >= 3  # label + val_0 + val_1 at minimum
 
-    def test_clean_rows_in_show_card(self):
-        stmt = _make_test_statement(num_rows=10)
-        conf = _make_test_confidence("medium", [0])
+    def test_rows_in_original_order(self):
+        """Rows render in row_index order, not flagged-first."""
+        stmt = _make_test_statement(num_rows=6)
+        conf = _make_test_confidence("medium", [1, 3])
         card = build_statement_review_card("balance_sheet", stmt, conf, {}, 1, 3)
-        # Should have an Action.ShowCard containing clean rows
-        show_cards = _collect_elements(card, "Action.ShowCard")
-        assert len(show_cards) >= 1, "Expected at least one Action.ShowCard for clean rows"
+        # Collect all Input.Text ids and TextBlock texts to determine row order
+        body = card["body"]
+        row_order = []
+        for element in body:
+            # Editable rows are Containers with Input.Text ids like row_N_label
+            inputs = _collect_elements(element, "Input.Text")
+            for inp in inputs:
+                m = __import__("re").match(r"row_(\d+)_label", inp.get("id", ""))
+                if m:
+                    row_order.append(int(m.group(1)))
+                    break
+            # Read-only rows are ColumnSets with TextBlock text matching "Item N"
+            if not inputs:
+                texts = _collect_texts(element)
+                for t in texts:
+                    if t.startswith("Item "):
+                        try:
+                            row_order.append(int(t.split(" ")[1]))
+                        except (ValueError, IndexError):
+                            pass
+                        break
+        assert row_order == [0, 1, 2, 3, 4, 5], f"Expected rows in order, got {row_order}"
+
+    def test_flagged_editable_clean_readonly(self):
+        """Flagged rows have Input fields, clean rows only have TextBlocks."""
+        stmt = _make_test_statement(num_rows=5)
+        conf = _make_test_confidence("medium", [1, 3])
+        card = build_statement_review_card("balance_sheet", stmt, conf, {}, 1, 3)
+        inputs = _collect_elements(card, "Input.Text")
+        ids = [inp["id"] for inp in inputs]
+        # Flagged rows 1 and 3 should have input fields
+        assert "row_1_label" in ids
+        assert "row_3_label" in ids
+        # Clean rows 0, 2, 4 should NOT have input fields
+        assert "row_0_label" not in ids
+        assert "row_2_label" not in ids
+        assert "row_4_label" not in ids
 
     def test_high_confidence_readonly(self):
         stmt = _make_test_statement()
         conf = _make_test_confidence("high")
         card = build_statement_review_card("balance_sheet", stmt, conf, {}, 1, 3, editable=False)
         inputs = _collect_elements(card, "Input.Text")
-        assert len(inputs) == 0, "Read-only card should have no Input.Text elements"
-        # Should have TextBlock elements for values
+        # Only the hidden 'action' input should exist — no editable row inputs
+        visible_inputs = [i for i in inputs if i.get("isVisible") is not False]
+        assert len(visible_inputs) == 0, "Read-only card should have no visible Input.Text elements"
         text_blocks = _collect_elements(card, "TextBlock")
         assert len(text_blocks) > 0
 
-    def test_high_confidence_has_edit_button(self):
+    def test_high_confidence_has_edit_anyway_button(self):
         stmt = _make_test_statement()
         conf = _make_test_confidence("high")
         card = build_statement_review_card("balance_sheet", stmt, conf, {}, 1, 3, editable=False)
         actions = _collect_actions(card)
         titles = [a.get("title", "") for a in actions]
-        assert "Edit" in titles
+        assert "Edit Anyway" in titles
+
+    def test_edit_all_button_present(self):
+        """Standard editable mode should have an Edit All button."""
+        stmt = _make_test_statement()
+        conf = _make_test_confidence("medium", [0])
+        card = build_statement_review_card("balance_sheet", stmt, conf, {}, 1, 3)
+        actions = card.get("actions", [])
+        titles = [a["title"] for a in actions]
+        assert "Edit All" in titles
+
+    def test_edit_all_all_rows_editable(self):
+        """edit_all=True makes every row editable."""
+        stmt = _make_test_statement(num_rows=5)
+        conf = _make_test_confidence("medium", [0])
+        card = build_statement_review_card("balance_sheet", stmt, conf, {}, 1, 3, edit_all=True)
+        inputs = _collect_elements(card, "Input.Text")
+        ids = [inp["id"] for inp in inputs]
+        for i in range(5):
+            assert f"row_{i}_label" in ids, f"row_{i}_label missing in edit_all mode"
+
+    def test_edit_all_pagination(self):
+        """With 40 rows, edit_all page 1 should render only rows 20-39."""
+        stmt = _make_test_statement(num_rows=40)
+        conf = _make_test_confidence("medium", [0])
+        card = build_statement_review_card("balance_sheet", stmt, conf, {}, 1, 3, edit_all=True, edit_all_page=1)
+        inputs = _collect_elements(card, "Input.Text")
+        ids = [inp["id"] for inp in inputs]
+        # Page 1 should have rows 20-39
+        assert "row_20_label" in ids
+        assert "row_39_label" in ids
+        # Page 0 rows should not be present
+        assert "row_0_label" not in ids
+        assert "row_19_label" not in ids
+
+    def test_edit_all_page_navigation_actions(self):
+        """Edit All with multiple pages should have page navigation."""
+        stmt = _make_test_statement(num_rows=40)
+        conf = _make_test_confidence("medium", [0])
+        # Page 0 of 2 — should have "Page →" but no "← Page"
+        card = build_statement_review_card("balance_sheet", stmt, conf, {}, 1, 3, edit_all=True, edit_all_page=0)
+        actions = card.get("actions", [])
+        action_data = [a.get("data", {}).get("action") for a in actions]
+        assert "edit_all_page_next" in action_data
+        assert "edit_all_page_prev" not in action_data
 
     def test_corrections_prepopulate_values(self):
         stmt = _make_test_statement()
@@ -290,24 +373,6 @@ class TestStatementReviewCard:
         all_text = " ".join(texts)
         assert "No data extracted" in all_text
 
-    def test_card_max_clean_rows_15(self):
-        stmt = _make_test_statement(num_rows=30)
-        conf = _make_test_confidence("medium", [0])
-        card = build_statement_review_card("balance_sheet", stmt, conf, {}, 1, 3)
-        # Find the ShowCard for clean rows
-        show_cards = _collect_elements(card, "Action.ShowCard")
-        assert len(show_cards) >= 1
-        inner_card = show_cards[0].get("card", {})
-        inner_inputs = _collect_elements(inner_card, "Input.Text")
-        # 15 clean rows * (1 label + 2 values) = 45 input fields max
-        # Each row has: label + num_columns values
-        max_inputs = 15 * 3  # label + val_0 + val_1
-        assert len(inner_inputs) <= max_inputs
-        # Also check that a "Showing 15 of" note exists
-        texts = _collect_texts(inner_card)
-        all_text = " ".join(texts)
-        assert "Showing 15 of" in all_text
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Parse submission tests
@@ -354,3 +419,195 @@ class TestParseSubmission:
         payload = {"action": "next"}
         action, corrections = parse_card_submission(payload, stmt)
         assert corrections == {}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Session state tests
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestInitSessionState:
+    def test_basic_init(self):
+        conf = _make_confidence_map()
+        state_str = init_session_state(conf, job_id="job-123")
+        state = json.loads(state_str)
+        assert state["jobId"] == "job-123"
+        assert state["phase"] == "navigator"
+        assert state["step"] == 0
+        assert state["statements"] == ["balance_sheet", "income_statement", "cash_flow"]
+        assert state["corrections"] == {}
+
+    def test_filters_not_found(self):
+        conf = _make_confidence_map()
+        conf["cash_flow"]["level"] = "not_found"
+        state = json.loads(init_session_state(conf))
+        assert "cash_flow" not in state["statements"]
+        assert state["statements"] == ["balance_sheet", "income_statement"]
+
+    def test_filters_missing_key(self):
+        conf = {
+            "balance_sheet": {"score": 0.9, "level": "high", "flagged_rows": []},
+        }
+        state = json.loads(init_session_state(conf))
+        assert state["statements"] == ["balance_sheet"]
+
+    def test_empty_confidence(self):
+        state = json.loads(init_session_state({}))
+        assert state["statements"] == []
+
+    def test_available_statements_overrides_confidence(self):
+        """When available_statements is provided, confidence levels are ignored."""
+        conf = _make_confidence_map()  # all 3 have scores
+        # Only BS and CF actually have data
+        state = json.loads(init_session_state(
+            conf, available_statements=["balance_sheet", "cash_flow"]
+        ))
+        assert state["statements"] == ["balance_sheet", "cash_flow"]
+
+    def test_available_statements_empty(self):
+        conf = _make_confidence_map()
+        state = json.loads(init_session_state(conf, available_statements=[]))
+        assert state["statements"] == []
+
+    def test_available_statements_preserves_canonical_order(self):
+        """Even if available_statements is passed in reverse, output follows STATEMENT_ORDER."""
+        conf = _make_confidence_map()
+        state = json.loads(init_session_state(
+            conf, available_statements=["cash_flow", "balance_sheet"]
+        ))
+        assert state["statements"] == ["balance_sheet", "cash_flow"]
+
+
+class TestAdvanceSessionState:
+    def _init(self, stmts=None):
+        """Create a review-ready state at step 1."""
+        stmts = stmts or ["balance_sheet", "income_statement", "cash_flow"]
+        return json.dumps({
+            "jobId": "j1",
+            "phase": "review",
+            "step": 1,
+            "statements": stmts,
+            "corrections": {},
+            "editable": False,
+            "editAll": False,
+            "editAllPage": 0,
+        })
+
+    def _nav(self):
+        return json.dumps({
+            "jobId": "j1",
+            "phase": "navigator",
+            "step": 0,
+            "statements": ["balance_sheet", "income_statement"],
+            "corrections": {},
+            "editable": False,
+            "editAll": False,
+            "editAllPage": 0,
+        })
+
+    # ── Navigator phase ──
+
+    def test_skip_review(self):
+        action, state_str = advance_session_state(self._nav(), {"action": "skip_review"})
+        assert action == "skip"
+
+    def test_start_review(self):
+        action, state_str = advance_session_state(self._nav(), {"action": "start_review"})
+        assert action == "continue"
+        state = json.loads(state_str)
+        assert state["phase"] == "review"
+        assert state["step"] == 1
+
+    # ── Review phase: navigation ──
+
+    def test_next_advances_step(self):
+        action, state_str = advance_session_state(self._init(), {"action": "next"})
+        assert action == "continue"
+        state = json.loads(state_str)
+        assert state["step"] == 2
+
+    def test_next_past_last_returns_done(self):
+        s = json.loads(self._init())
+        s["step"] = 3  # last of 3 statements
+        action, state_str = advance_session_state(json.dumps(s), {"action": "next"})
+        assert action == "done"
+        state = json.loads(state_str)
+        assert state["phase"] == "export"
+
+    def test_previous_decrements_step(self):
+        s = json.loads(self._init())
+        s["step"] = 2
+        action, state_str = advance_session_state(json.dumps(s), {"action": "previous"})
+        assert action == "continue"
+        state = json.loads(state_str)
+        assert state["step"] == 1
+
+    def test_previous_at_step1_stays(self):
+        action, state_str = advance_session_state(self._init(), {"action": "previous"})
+        state = json.loads(state_str)
+        assert state["step"] == 1
+
+    def test_submit_returns_done(self):
+        action, _ = advance_session_state(self._init(), {"action": "submit"})
+        assert action == "done"
+
+    # ── Review phase: edit toggles ──
+
+    def test_edit_enables_editable(self):
+        action, state_str = advance_session_state(self._init(), {"action": "edit"})
+        assert action == "continue"
+        state = json.loads(state_str)
+        assert state["editable"] is True
+        assert state["editAll"] is False
+
+    def test_edit_all_enables_both(self):
+        action, state_str = advance_session_state(self._init(), {"action": "edit_all"})
+        state = json.loads(state_str)
+        assert state["editable"] is True
+        assert state["editAll"] is True
+
+    def test_edit_all_page_next(self):
+        s = json.loads(self._init())
+        s["editAll"] = True
+        s["editAllPage"] = 0
+        action, state_str = advance_session_state(json.dumps(s), {"action": "edit_all_page_next"})
+        state = json.loads(state_str)
+        assert state["editAllPage"] == 1
+
+    def test_edit_all_page_prev_floors_at_zero(self):
+        s = json.loads(self._init())
+        s["editAllPage"] = 0
+        action, state_str = advance_session_state(json.dumps(s), {"action": "edit_all_page_prev"})
+        state = json.loads(state_str)
+        assert state["editAllPage"] == 0
+
+    # ── Corrections accumulation ──
+
+    def test_corrections_captured(self):
+        stmt = _make_test_statement()
+        payload = {"action": "next", "row_0_label": "Trade debtors"}
+        action, state_str = advance_session_state(self._init(), payload, stmt)
+        state = json.loads(state_str)
+        assert "balance_sheet" in state["corrections"]
+        assert state["corrections"]["balance_sheet"]["row_0"]["label"] == "Trade debtors"
+
+    def test_corrections_accumulate_across_calls(self):
+        stmt = _make_test_statement()
+        # First call: correct row 0
+        _, state_str = advance_session_state(
+            self._init(), {"action": "edit", "row_0_label": "Corrected"}, stmt
+        )
+        # Second call on same step: correct row 1
+        _, state_str = advance_session_state(
+            state_str, {"action": "next", "row_1_val_0": "999"}, stmt
+        )
+        state = json.loads(state_str)
+        bs = state["corrections"]["balance_sheet"]
+        assert bs["row_0"]["label"] == "Corrected"
+        assert bs["row_1"]["val_0"] == "999"
+
+    # ── Unknown action fallback ──
+
+    def test_unknown_action_returns_continue(self):
+        action, _ = advance_session_state(self._init(), {"action": "bogus"})
+        assert action == "continue"

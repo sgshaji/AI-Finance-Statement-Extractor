@@ -98,11 +98,11 @@ def _build_response_payload(result: dict) -> dict:
             if company_name:
                 break
     return {
-        "company_name": company_name or "Unknown_Company",
+        "companyName": company_name or "Unknown_Company",
         "summary": json.dumps(result.get("summary", []), ensure_ascii=False),
-        "balance_sheet": json.dumps(result.get("balance_sheet"), ensure_ascii=False),
-        "income_statement": json.dumps(result.get("income_statement"), ensure_ascii=False),
-        "cash_flow": json.dumps(result.get("cash_flow"), ensure_ascii=False),
+        "balanceSheet": json.dumps(result.get("balance_sheet"), ensure_ascii=False),
+        "incomeStatement": json.dumps(result.get("income_statement"), ensure_ascii=False),
+        "cashFlow": json.dumps(result.get("cash_flow"), ensure_ascii=False),
         "confidence": json.dumps(result.get("confidence", {}), ensure_ascii=False),
     }
 
@@ -259,11 +259,11 @@ def extract_status(req: func.HttpRequest) -> func.HttpResponse:
         return func.HttpResponse(
             json.dumps({
                 "status": "processing",
-                "company_name": "",
+                "companyName": "",
                 "summary": "",
-                "balance_sheet": "",
-                "income_statement": "",
-                "cash_flow": "",
+                "balanceSheet": "",
+                "incomeStatement": "",
+                "cashFlow": "",
                 "confidence": "",
             }),
             status_code=200,
@@ -273,7 +273,7 @@ def extract_status(req: func.HttpRequest) -> func.HttpResponse:
     if job["status"] == "completed":
         result = job["result"]
         result["status"] = "completed"
-        result["job_id"] = job_id
+        result["jobId"] = job_id
         # NOTE: Do NOT delete job here — HITL review needs it for
         # /api/apply-corrections. Job is deleted after corrections are applied,
         # or expires via blob TTL (30 min) if abandoned.
@@ -301,8 +301,11 @@ def apply_corrections(req: func.HttpRequest) -> func.HttpResponse:
     """
     Apply analyst corrections to a cached extraction result.
 
-    Body: {"job_id": "...", "corrections": {"balance_sheet": {...}, ...}}
-    Returns: corrected statement JSONs (clean v1.2, no confidence).
+    Session-state driven: corrections are accumulated inside sessionState
+    across all reviewed statements. The topic sends jobId + sessionState.
+
+    Body: { "jobId": "...", "sessionState": "..." }
+    Returns: corrected statement JSONs (camelCase keys, clean v1.2).
     """
     try:
         body = req.get_json()
@@ -312,14 +315,24 @@ def apply_corrections(req: func.HttpRequest) -> func.HttpResponse:
             status_code=400, mimetype="application/json",
         )
 
-    job_id = body.get("job_id")
-    corrections = body.get("corrections", {})
+    job_id = body.get("jobId")
+    session_state_str = body.get("sessionState", "{}")
 
     if not job_id:
         return func.HttpResponse(
-            json.dumps({"error": "Missing job_id"}),
+            json.dumps({"error": "Missing jobId"}),
             status_code=400, mimetype="application/json",
         )
+
+    # Extract corrections from session state
+    try:
+        state = json.loads(session_state_str) if session_state_str else {}
+    except (json.JSONDecodeError, TypeError):
+        return func.HttpResponse(
+            json.dumps({"error": "Malformed sessionState"}),
+            status_code=400, mimetype="application/json",
+        )
+    corrections = state.get("corrections", {})
 
     # Load cached extraction result
     job = _load_job(job_id)
@@ -334,22 +347,22 @@ def apply_corrections(req: func.HttpRequest) -> func.HttpResponse:
     # Apply corrections per statement
     from extractor.corrections import apply_corrections as _apply
     for stype in STATEMENT_TYPES:
-        stmt_json = result.get(stype)
+        stmt = _parse_stmt_from_result(result, stype)
         stmt_corrections = corrections.get(stype, {})
-        if stmt_json and stmt_corrections:
-            if isinstance(stmt_json, str):
-                stmt_json = json.loads(stmt_json)
-            stmt_json = _apply(stmt_json, stmt_corrections)
-            result[stype] = json.dumps(stmt_json, ensure_ascii=False)
+        if stmt and stmt_corrections:
+            stmt = _apply(stmt, stmt_corrections)
+        # Write back using camelCase key
+        camel_key = _SNAKE_TO_CAMEL.get(stype, stype)
+        result[camel_key] = json.dumps(stmt, ensure_ascii=False) if stmt else "null"
 
-    # Build final payload (same format as extract_status completed response)
+    # Build final payload (camelCase keys)
     payload = {
         "status": "corrected",
-        "company_name": result.get("company_name", "Unknown_Company"),
+        "companyName": result.get("companyName") or result.get("company_name", "Unknown_Company"),
         "summary": result.get("summary", "[]"),
-        "balance_sheet": result.get("balance_sheet", "null"),
-        "income_statement": result.get("income_statement", "null"),
-        "cash_flow": result.get("cash_flow", "null"),
+        "balanceSheet": result.get("balanceSheet") or result.get("balance_sheet", "null"),
+        "incomeStatement": result.get("incomeStatement") or result.get("income_statement", "null"),
+        "cashFlow": result.get("cashFlow") or result.get("cash_flow", "null"),
     }
 
     # Clean up cached job
@@ -365,20 +378,36 @@ def apply_corrections(req: func.HttpRequest) -> func.HttpResponse:
 # POST /build-review-card — generate Adaptive Card JSON for HITL review
 # ---------------------------------------------------------------------------
 
+# Key mapping: connector camelCase → blob store snake_case for statement keys
+_CAMEL_TO_SNAKE = {
+    "balanceSheet": "balance_sheet",
+    "incomeStatement": "income_statement",
+    "cashFlow": "cash_flow",
+}
+_SNAKE_TO_CAMEL = {v: k for k, v in _CAMEL_TO_SNAKE.items()}
+
+
+def _parse_stmt_from_result(result: dict, stype_snake: str):
+    """Load a statement dict from the (possibly camelCase-keyed) result blob."""
+    camel_key = _SNAKE_TO_CAMEL.get(stype_snake, stype_snake)
+    stmt_str = result.get(stype_snake) or result.get(camel_key)
+    if not stmt_str or stmt_str == "null":
+        return None
+    return json.loads(stmt_str) if isinstance(stmt_str, str) else stmt_str
+
+
 @app.route(route="build-review-card", methods=["POST"])
 def build_review_card(req: func.HttpRequest) -> func.HttpResponse:
     """
-    Generate an Adaptive Card JSON payload for a statement review.
+    Generate an Adaptive Card JSON payload for HITL review.
 
-    Body: {
-      "job_id": "...",
-      "card_type": "navigator" | "statement",
-      "statement_type": "balance_sheet" (for statement cards),
-      "step_num": 1,
-      "total_steps": 3,
-      "editable": true,
-      "corrections": {}
-    }
+    Session-state driven: the topic sends jobId + sessionState (opaque JSON
+    string). On the very first call sessionState is empty — the backend
+    creates it from confidence data and returns the navigator card. On
+    subsequent calls the session state tells us which card to build.
+
+    Body: { "jobId": "...", "sessionState": "..." }
+    Returns: { "cardJson": "...", "sessionState": "..." }
     """
     try:
         body = req.get_json()
@@ -388,10 +417,14 @@ def build_review_card(req: func.HttpRequest) -> func.HttpResponse:
             status_code=400, mimetype="application/json",
         )
 
-    from extractor.card_builder import build_navigator_card, build_statement_review_card
+    from extractor.card_builder import (
+        build_navigator_card,
+        build_statement_review_card,
+        init_session_state,
+    )
 
-    job_id = body.get("job_id")
-    card_type = body.get("card_type", "navigator")
+    job_id = body.get("jobId")
+    session_state_str = body.get("sessionState", "")
 
     # Load cached job
     job = _load_job(job_id)
@@ -403,81 +436,107 @@ def build_review_card(req: func.HttpRequest) -> func.HttpResponse:
 
     result = job.get("result", {})
 
-    if card_type == "navigator":
-        # Parse confidence from result
-        confidence_str = result.get("confidence", "{}")
-        confidence = json.loads(confidence_str) if isinstance(confidence_str, str) else confidence_str
+    # Parse confidence (needed for init and statement cards)
+    confidence_str = result.get("confidence") or "{}"
+    confidence = json.loads(confidence_str) if isinstance(confidence_str, str) else confidence_str
+
+    # ── First call: initialise session state, return navigator ──
+    if not session_state_str or session_state_str.strip() in ('{}', '"{}"'):
+        # Determine which statements actually have data (not null/empty)
+        available = [
+            stype for stype in STATEMENT_TYPES
+            if _parse_stmt_from_result(result, stype) is not None
+        ]
+        session_state_str = init_session_state(
+            confidence, job_id=job_id, available_statements=available,
+        )
 
         # Extract metadata from first available statement
-        company_name = result.get("company_name", "Unknown")
+        company_name = result.get("companyName") or result.get("company_name", "Unknown")
         currency = "USD"
         unit = "ones"
         for stype in STATEMENT_TYPES:
-            stmt_str = result.get(stype)
-            if stmt_str and stmt_str != "null":
-                stmt = json.loads(stmt_str) if isinstance(stmt_str, str) else stmt_str
-                if isinstance(stmt, dict):
-                    meta = stmt.get("statement_metadata", {})
-                    currency = meta.get("currency", currency)
-                    unit = meta.get("unit", unit)
-                    break
+            stmt = _parse_stmt_from_result(result, stype)
+            if stmt and isinstance(stmt, dict):
+                meta = stmt.get("statement_metadata", {})
+                currency = meta.get("currency", currency)
+                unit = meta.get("unit", unit)
+                break
 
         summary_str = result.get("summary", "[]")
         summary = json.loads(summary_str) if isinstance(summary_str, str) else summary_str
 
         card = build_navigator_card(company_name, currency, unit, confidence, summary)
-
-    elif card_type == "statement":
-        stype = body.get("statement_type", "balance_sheet")
-        stmt_str = result.get(stype)
-        if not stmt_str or stmt_str == "null":
-            return func.HttpResponse(
-                json.dumps({"error": f"Statement {stype} not found in job"}),
-                status_code=404, mimetype="application/json",
-            )
-        stmt = json.loads(stmt_str) if isinstance(stmt_str, str) else stmt_str
-
-        confidence_str = result.get("confidence", "{}")
-        confidence = json.loads(confidence_str) if isinstance(confidence_str, str) else confidence_str
-        confidence_entry = confidence.get(stype, {"score": 0, "level": "low", "flagged_rows": []})
-
-        card = build_statement_review_card(
-            statement_type=stype,
-            statement_json=stmt,
-            confidence_entry=confidence_entry,
-            corrections=body.get("corrections", {}),
-            step_num=body.get("step_num", 1),
-            total_steps=body.get("total_steps", 3),
-            editable=body.get("editable", True),
-        )
-    else:
         return func.HttpResponse(
-            json.dumps({"error": f"Unknown card_type: {card_type}"}),
+            json.dumps({"cardJson": json.dumps(card, ensure_ascii=False),
+                         "sessionState": session_state_str}),
+            status_code=200, mimetype="application/json",
+        )
+
+    # ── Subsequent calls: session state tells us what to build ──
+    try:
+        state = json.loads(session_state_str)
+    except (json.JSONDecodeError, TypeError):
+        return func.HttpResponse(
+            json.dumps({"error": "Malformed sessionState"}),
+            status_code=400, mimetype="application/json",
+        )
+    step = state.get("step", 1)
+    statements = state.get("statements", [])
+    total_steps = len(statements)
+
+    if step < 1 or step > total_steps:
+        return func.HttpResponse(
+            json.dumps({"error": f"Invalid step {step} for {total_steps} statements"}),
             status_code=400, mimetype="application/json",
         )
 
+    stype = statements[step - 1]
+    stmt = _parse_stmt_from_result(result, stype)
+    if not stmt:
+        return func.HttpResponse(
+            json.dumps({"error": f"Statement {stype} not found in job"}),
+            status_code=404, mimetype="application/json",
+        )
+
+    confidence_entry = confidence.get(stype, {"score": 0, "level": "low", "flagged_rows": []})
+    corrections_for_stmt = state.get("corrections", {}).get(stype, {})
+
+    card = build_statement_review_card(
+        statement_type=stype,
+        statement_json=stmt,
+        confidence_entry=confidence_entry,
+        corrections=corrections_for_stmt,
+        step_num=step,
+        total_steps=total_steps,
+        editable=state.get("editable", False),
+        edit_all=state.get("editAll", False),
+        edit_all_page=state.get("editAllPage", 0),
+    )
+
     return func.HttpResponse(
-        json.dumps(card, ensure_ascii=False),
+        json.dumps({"cardJson": json.dumps(card, ensure_ascii=False),
+                     "sessionState": session_state_str}),
         status_code=200, mimetype="application/json",
     )
 
 
 # ---------------------------------------------------------------------------
-# POST /parse-card-submission — parse Adaptive Card submit payload into corrections
+# POST /parse-card-submission — advance session state from Adaptive Card payload
 # ---------------------------------------------------------------------------
 
 @app.route(route="parse-card-submission", methods=["POST"])
 def parse_card_submission_route(req: func.HttpRequest) -> func.HttpResponse:
     """
-    Parse an Adaptive Card submission payload into action + corrections diff.
+    Parse an Adaptive Card submission and advance the session state machine.
 
-    Body: {
-      "job_id": "...",
-      "statement_type": "balance_sheet",
-      "payload": { "row_5_label": "Trade debtors", "action": "next", ... }
-    }
+    The topic sends two values: the opaque sessionState string and the raw
+    Adaptive Card payload string. The backend resolves the current statement
+    from sessionState, diffs corrections, and returns a topic-facing action
+    (continue / done / skip) plus the updated sessionState.
 
-    Returns: { "action": "next", "corrections": {"row_5": {"label": "Trade debtors"}} }
+    Body: { "sessionState": "...", "payload": "..." }
+    Returns: { "action": "continue|done|skip", "sessionState": "..." }
     """
     try:
         body = req.get_json()
@@ -487,35 +546,70 @@ def parse_card_submission_route(req: func.HttpRequest) -> func.HttpResponse:
             status_code=400, mimetype="application/json",
         )
 
-    from extractor.card_builder import parse_card_submission
+    from extractor.card_builder import advance_session_state
 
-    job_id = body.get("job_id")
-    stype = body.get("statement_type", "balance_sheet")
-    payload = body.get("payload", {})
+    session_state_str = body.get("sessionState", "")
+    payload_raw = body.get("payload", "{}")
 
-    # Load statement from cached job
-    job = _load_job(job_id)
-    if not job or job.get("status") != "completed":
+    if not session_state_str:
         return func.HttpResponse(
-            json.dumps({"error": f"Job {job_id} not found"}),
-            status_code=404, mimetype="application/json",
+            json.dumps({"error": "Missing sessionState"}),
+            status_code=400, mimetype="application/json",
         )
 
-    result = job.get("result", {})
-    stmt_str = result.get(stype)
-    if not stmt_str or stmt_str == "null":
+    # Parse payload (topic sends it as a JSON string)
+    if isinstance(payload_raw, str):
+        try:
+            payload = json.loads(payload_raw)
+        except json.JSONDecodeError:
+            payload = {}
+    else:
+        payload = payload_raw
+    # Guard against null/None payload
+    if not isinstance(payload, dict):
+        payload = {}
+
+    logging.info(f"parse-card-submission: sessionState={session_state_str[:200]}, payload={json.dumps(payload)[:200]}")
+
+    # Resolve the current statement from the session state so we can diff corrections
+    try:
+        state = json.loads(session_state_str)
+    except (json.JSONDecodeError, TypeError):
         return func.HttpResponse(
-            json.dumps({"error": f"Statement {stype} not found"}),
-            status_code=404, mimetype="application/json",
+            json.dumps({"error": "Malformed sessionState"}),
+            status_code=400, mimetype="application/json",
         )
+    statement_json = None
 
-    stmt = json.loads(stmt_str) if isinstance(stmt_str, str) else stmt_str
-    action, corrections = parse_card_submission(payload, stmt)
+    try:
+        if state.get("phase") == "review":
+            step = state.get("step", 0)
+            statements = state.get("statements", [])
+            if 0 < step <= len(statements):
+                stype = statements[step - 1]
+                job_id = state.get("jobId") or payload.get("jobId")
+                if job_id:
+                    job = _load_job(job_id)
+                    if job and job.get("status") == "completed":
+                        statement_json = _parse_stmt_from_result(job.get("result", {}), stype)
+                if statement_json is None:
+                    logging.warning(
+                        "parse-card-submission: could not load statement for "
+                        f"step={step} — corrections will not be captured"
+                    )
 
-    return func.HttpResponse(
-        json.dumps({"action": action, "corrections": corrections}, ensure_ascii=False),
-        status_code=200, mimetype="application/json",
-    )
+        topic_action, updated_state = advance_session_state(session_state_str, payload, statement_json)
+
+        return func.HttpResponse(
+            json.dumps({"action": topic_action, "sessionState": updated_state}, ensure_ascii=False),
+            status_code=200, mimetype="application/json",
+        )
+    except Exception as e:
+        logging.exception(f"parse-card-submission: unhandled error: {e}")
+        return func.HttpResponse(
+            json.dumps({"error": f"Internal error: {str(e)}"}),
+            status_code=500, mimetype="application/json",
+        )
 
 
 # ---------------------------------------------------------------------------

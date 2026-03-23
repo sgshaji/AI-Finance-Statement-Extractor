@@ -15,6 +15,10 @@ beginDialog:
               id: sendMessage_QZreqo
               activity: I'm sorry, I'm not sure how to help with that. Can you try rephrasing?
 
+            - kind: SendActivity
+              id: sendActivity_lIHLXt
+              activity: "File Value: {First(System.Activity.Attachments).Value}"
+
       elseActions:
         - kind: BeginDialog
           id: 5aXj5M

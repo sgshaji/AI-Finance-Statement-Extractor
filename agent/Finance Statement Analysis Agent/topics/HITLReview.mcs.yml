@@ -1,0 +1,398 @@
+kind: AdaptiveDialog
+modelDescription: HITL review workflow for extracted financial statements.
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main
+  actions:
+    - kind: SetVariable
+      id: setVar_initBsCorr
+      variable: init:Topic.bs_corrections
+      value: ="{}"
+
+    - kind: SetVariable
+      id: setVar_initIsCorr
+      variable: init:Topic.is_corrections
+      value: ="{}"
+
+    - kind: SetVariable
+      id: setVar_initCfCorr
+      variable: init:Topic.cf_corrections
+      value: ="{}"
+
+    - kind: SetVariable
+      id: setVar_parseConf
+      variable: init:Topic.confidenceParsed
+      value: =ParseJSON(Global.confidence)
+
+    - kind: SetVariable
+      id: setVar_bsExists
+      variable: init:Topic.bs_exists
+      value: =If(Text(Topic.confidenceParsed.balance_sheet.level) <> "not_found", true, false)
+
+    - kind: SetVariable
+      id: setVar_isExists
+      variable: init:Topic.is_exists
+      value: =If(Text(Topic.confidenceParsed.income_statement.level) <> "not_found", true, false)
+
+    - kind: SetVariable
+      id: setVar_cfExists
+      variable: init:Topic.cf_exists
+      value: =If(Text(Topic.confidenceParsed.cash_flow.level) <> "not_found", true, false)
+
+    - kind: SetVariable
+      id: setVar_totalSteps
+      variable: init:Topic.total_steps
+      value: =If(Topic.bs_exists, 1, 0) + If(Topic.is_exists, 1, 0) + If(Topic.cf_exists, 1, 0)
+
+    - kind: SetVariable
+      id: setVar_initStep
+      variable: init:Topic.current_step
+      value: =0
+
+    - kind: ConditionGroup
+      id: condGrp_ovr1Kz
+      conditions:
+        - id: condItem_hasOvr
+          condition: =!IsBlank(Topic.current_step_override)
+          actions:
+            - kind: SetVariable
+              id: setVar_ovrStep
+              variable: Topic.current_step
+              value: =Value(Topic.current_step_override)
+
+            - kind: ConditionGroup
+              id: condGrp_restCorr
+              conditions:
+                - id: condItem_hasBsCorr
+                  condition: =!IsBlank(Topic.bs_corrections_override)
+                  actions:
+                    - kind: SetVariable
+                      id: setVar_restBsCorr
+                      variable: Topic.bs_corrections
+                      value: =Topic.bs_corrections_override
+
+            - kind: ConditionGroup
+              id: condGrp_restIsCorr
+              conditions:
+                - id: condItem_hasIsCorr
+                  condition: =!IsBlank(Topic.is_corrections_override)
+                  actions:
+                    - kind: SetVariable
+                      id: setVar_restIsCorr
+                      variable: Topic.is_corrections
+                      value: =Topic.is_corrections_override
+
+            - kind: ConditionGroup
+              id: condGrp_restCfCorr
+              conditions:
+                - id: condItem_hasCfCorr
+                  condition: =!IsBlank(Topic.cf_corrections_override)
+                  actions:
+                    - kind: SetVariable
+                      id: setVar_restCfCorr
+                      variable: Topic.cf_corrections
+                      value: =Topic.cf_corrections_override
+
+    - kind: SetVariable
+      id: setVar_initEditAll
+      variable: init:Topic.is_edit_all
+      value: =If(!IsBlank(Topic.edit_all_override) And Topic.edit_all_override = "true", true, false)
+
+    - kind: SetVariable
+      id: setVar_initEditAllPage
+      variable: init:Topic.edit_all_page_num
+      value: =If(!IsBlank(Topic.edit_all_page_override), Value(Topic.edit_all_page_override), 0)
+
+    - kind: ConditionGroup
+      id: condGrp_showNav
+      conditions:
+        - id: condItem_navShow
+          condition: =Topic.current_step = 0
+          actions:
+            - kind: BeginDialog
+              id: Yzjay1
+              input:
+                binding:
+                  card_type: ="navigator"
+                  job_id: =Global.job_id
+              dialog: cree1_FinanceStatementAnalysisAgent.action.FinancialExtractor-BuildanAdaptiveCardforHITLstatementrev
+              output:
+                binding:
+                  card_json: Topic.card_json
+
+            - kind: ConditionGroup
+              id: condGrp_navErr
+              conditions:
+                - id: condItem_navHttpErr
+                  condition: =IsBlank(Topic.card_json)
+                  actions:
+                    - kind: SendActivity
+                      id: sendMsg_navErr
+                      activity: Something went wrong loading the review navigator.
+                    - kind: EndDialog
+                      id: endDlg_navErr
+
+            - kind: AdaptiveCardPrompt
+              id: acPrompt_nav1Rq
+              card: =Topic.card_json
+              output:
+                binding:
+                  action: Topic.nav_action
+              outputType:
+                properties:
+                  action:
+                    displayName: action
+                    type: String
+
+            - kind: ConditionGroup
+              id: condGrp_s9Pv2w
+              conditions:
+                - id: condItem_skipRv
+                  condition: =Topic.nav_action = "skip_review"
+                  actions:
+                    - kind: SendActivity
+                      id: sendMsg_skip3q
+                      activity: Skipping review. Generating your Excel report now...
+                    - kind: BeginDialog
+                      id: beginDlg_skip7x
+                      input:
+                        binding:
+                          text: =Global.balance_sheet
+                          text_1: =Global.income_statement
+                          text_2: =Global.cash_flow
+                          text_3: =Global.summary
+                          text_4: =Global.company_name
+                      dialog: cree1_FinanceStatementAnalysisAgent.action.FinanceStatementProcessor
+                      output:
+                        binding:
+                          filename: Topic.filename
+                          fileurl: Topic.fileurl
+                    - kind: SendActivity
+                      id: sendMsg_dlSkp4
+                      activity: "Your report is ready: [{Topic.filename}]({Topic.fileurl})"
+                    - kind: EndDialog
+                      id: endDlg_sk1p9z
+              elseActions:
+                - kind: SetVariable
+                  id: setVar_step1x
+                  variable: Topic.current_step
+                  value: =1
+
+    - kind: ConditionGroup
+      id: condGrp_bs4Lm2
+      conditions:
+        - id: condItem_bs1Rv
+          condition: =Topic.current_step = 1
+          actions:
+            - kind: ConditionGroup
+              id: condGrp_bsSkip
+              conditions:
+                - id: condItem_bsNotFound
+                  condition: =!Topic.bs_exists
+                  actions:
+                    - kind: SetVariable
+                      id: setVar_bsSkip2
+                      variable: Topic.current_step
+                      value: =2
+              elseActions:
+                - kind: SetVariable
+                  id: setVar_bsEditable
+                  variable: init:Topic.current_editable
+                  value: =If(Text(Topic.confidenceParsed.balance_sheet.level) = "medium" Or Text(Topic.confidenceParsed.balance_sheet.level) = "low", true, false)
+                - kind: SetVariable
+                  id: setVar_bsStepNum
+                  variable: init:Topic.current_step_num
+                  value: =1
+                - kind: BeginDialog
+                  id: beginDlg_bsCard3v
+                  input:
+                    binding:
+                      job_id: =Global.job_id
+                      card_type: ="statement"
+                      statement_type: ="balance_sheet"
+                      step_num: =Text(Topic.current_step_num)
+                      total_steps: =Text(Topic.total_steps)
+                      editable: =If(Topic.current_editable, "true", "false")
+                      corrections: =Topic.bs_corrections
+                      edit_all: =If(Topic.is_edit_all, "true", "false")
+                      edit_all_page: =Text(Topic.edit_all_page_num)
+                  dialog: cree1_FinanceStatementAnalysisAgent.action.FinancialExtractor-BuildanAdaptiveCardforHITLstatementrev
+                  output:
+                    binding:
+                      card_json: Topic.card_json
+                - kind: ConditionGroup
+                  id: condGrp_bsCardErr
+                  conditions:
+                    - id: condItem_bsHttpErr
+                      condition: =IsBlank(Topic.card_json)
+                      actions:
+                        - kind: SendActivity
+                          id: sendMsg_bsErr
+                          activity: Failed to load the balance sheet review card.
+                        - kind: EndDialog
+                          id: endDlg_bsErr
+                - kind: AdaptiveCardPrompt
+                  id: acPrompt_bs7Kq
+                  card: =Topic.card_json
+                  output:
+                    binding:
+                      actionField: Topic.card_response
+                  outputType:
+                    properties:
+                      actionField:
+                        displayName: Card Response
+                        type: String
+                - kind: BeginDialog
+                  id: beginDlg_bsParse5w
+                  input:
+                    binding:
+                      job_id: =Global.job_id
+                      statement_type: ="balance_sheet"
+                      payload: =Topic.card_response
+                  dialog: cree1_FinanceStatementAnalysisAgent.action.FinancialExtractor-ParseanAdaptiveCardsubmissionintocorre
+                  output:
+                    binding:
+                      action: Topic.current_action
+                      corrections: Topic.bs_corrections
+                - kind: ConditionGroup
+                  id: condGrp_bsAction
+                  conditions:
+                    - id: condItem_bsNext
+                      condition: =Topic.current_action = "next"
+                      actions:
+                        - kind: SetVariable
+                          id: setVar_bsNext
+                          variable: Topic.current_step
+                          value: =2
+                    - id: condItem_bsSubmit
+                      condition: =Topic.current_action = "submit"
+                      actions:
+                        - kind: SetVariable
+                          id: setVar_bsSubmitStep
+                          variable: Topic.current_step
+                          value: =99
+                    - id: condItem_bsEdit
+                      condition: =Topic.current_action = "edit"
+                      actions:
+                        - kind: BeginDialog
+                          id: bsEdit_buildCard
+                          input:
+                            binding:
+                              job_id: =Global.job_id
+                              card_type: ="statement"
+                              statement_type: ="balance_sheet"
+                              step_num: =Text(Topic.current_step_num)
+                              total_steps: =Text(Topic.total_steps)
+                              editable: ="true"
+                              corrections: =Topic.bs_corrections
+                              edit_all: ="false"
+                              edit_all_page: ="0"
+                          dialog: cree1_FinanceStatementAnalysisAgent.action.FinancialExtractor-BuildanAdaptiveCardforHITLstatementrev
+                          output:
+                            binding:
+                              card_json: Topic.card_json
+                    - id: condItem_bsEditAll
+                      condition: =Topic.current_action = "edit_all"
+                      actions:
+                        - kind: BeginDialog
+                          id: bsEditAll_buildCard
+                          input:
+                            binding:
+                              job_id: =Global.job_id
+                              card_type: ="statement"
+                              statement_type: ="balance_sheet"
+                              step_num: =Text(Topic.current_step_num)
+                              total_steps: =Text(Topic.total_steps)
+                              editable: ="true"
+                              corrections: =Topic.bs_corrections
+                              edit_all: ="true"
+                              edit_all_page: ="0"
+                          dialog: cree1_FinanceStatementAnalysisAgent.action.FinancialExtractor-BuildanAdaptiveCardforHITLstatementrev
+                          output:
+                            binding:
+                              card_json: Topic.card_json
+                    - id: condItem_bsEditAnyway
+                      condition: =Topic.current_action = "edit_anyway"
+                      actions:
+                        - kind: BeginDialog
+                          id: bsEditAnyway_buildCard
+                          input:
+                            binding:
+                              job_id: =Global.job_id
+                              card_type: ="statement"
+                              statement_type: ="balance_sheet"
+                              step_num: =Text(Topic.current_step_num)
+                              total_steps: =Text(Topic.total_steps)
+                              editable: ="true"
+                              corrections: =Topic.bs_corrections
+                              edit_all: ="false"
+                              edit_all_page: ="0"
+                          dialog: cree1_FinanceStatementAnalysisAgent.action.FinancialExtractor-BuildanAdaptiveCardforHITLstatementrev
+                          output:
+                            binding:
+                              card_json: Topic.card_json
+                    - id: condItem_bsEditAllPgNext
+                      condition: =Topic.current_action = "edit_all_page_next"
+                      actions:
+                        - kind: BeginDialog
+                          id: bsPageNext_buildCard
+                          input:
+                            binding:
+                              job_id: =Global.job_id
+                              card_type: ="statement"
+                              statement_type: ="balance_sheet"
+                              step_num: =Text(Topic.current_step_num)
+                              total_steps: =Text(Topic.total_steps)
+                              editable: ="true"
+                              corrections: =Topic.bs_corrections
+                              edit_all: ="true"
+                              edit_all_page: =Text(Topic.edit_all_page_num + 1)
+                          dialog: cree1_FinanceStatementAnalysisAgent.action.FinancialExtractor-BuildanAdaptiveCardforHITLstatementrev
+                          output:
+                            binding:
+                              card_json: Topic.card_json
+                    - id: condItem_bsEditAllPgPrev
+                      condition: =Topic.current_action = "edit_all_page_prev"
+                      actions:
+                        - kind: BeginDialog
+                          id: bsPagePrev_buildCard
+                          input:
+                            binding:
+                              job_id: =Global.job_id
+                              card_type: ="statement"
+                              statement_type: ="balance_sheet"
+                              step_num: =Text(Topic.current_step_num)
+                              total_steps: =Text(Topic.total_steps)
+                              editable: ="true"
+                              corrections: =Topic.bs_corrections
+                              edit_all: ="true"
+                              edit_all_page: =Text(Topic.edit_all_page_num - 1)
+                          dialog: cree1_FinanceStatementAnalysisAgent.action.FinancialExtractor-BuildanAdaptiveCardforHITLstatementrev
+                          output:
+                            binding:
+                              card_json: Topic.card_json
+    - kind: SendActivity
+      id: sendMsg_stepDone
+      activity: Step {Topic.current_step} next.
+
+inputType:
+  properties:
+    bs_corrections_override:
+      displayName: BS Corrections Override
+      type: String
+    cf_corrections_override:
+      displayName: CF Corrections Override
+      type: String
+    current_step_override:
+      displayName: Current Step Override
+      type: String
+    edit_all_override:
+      displayName: Edit All Override
+      type: String
+    edit_all_page_override:
+      displayName: Edit All Page Override
+      type: String
+    is_corrections_override:
+      displayName: IS Corrections Override
+      type: String
+outputType: {}

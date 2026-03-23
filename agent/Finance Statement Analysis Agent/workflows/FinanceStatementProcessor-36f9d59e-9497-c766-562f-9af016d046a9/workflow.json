@@ -307,7 +307,7 @@
             ]
           },
           "runAfter": {
-            "Parse_Balance_Sheet_Metadata": [
+            "Parse_Summary": [
               "SUCCEEDED"
             ]
           }
@@ -334,29 +334,33 @@
           "inputs": {
             "content": "@triggerBody()?[\u0027text_3\u0027]",
             "schema": {
-              "type": "object",
-              "properties": {
-                "summary": {
-                  "type": "array",
-                  "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "statement_type": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "row_count": {
+                    "type": "integer"
+                  },
+                  "column_count": {
+                    "type": "integer"
+                  },
+                  "validation_status": {
+                    "type": "string"
+                  },
+                  "page_range": {
                     "type": "object",
                     "properties": {
-                      "statement_type": {
-                        "type": "string"
+                      "start": {
+                        "type": "integer"
                       },
-                      "status": {
-                        "type": "string"
-                      },
-                      "page_range": {
-                        "type": "object",
-                        "properties": {
-                          "start": {
-                            "type": "integer"
-                          },
-                          "end": {
-                            "type": "integer"
-                          }
-                        }
+                      "end": {
+                        "type": "integer"
                       }
                     }
                   }
@@ -365,50 +369,6 @@
             }
           },
           "runAfter": {}
-        },
-        "Parse_Balance_Sheet_Metadata": {
-          "type": "ParseJson",
-          "inputs": {
-            "content": "@triggerBody()?[\u0027text\u0027]",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "document_metadata": {
-                  "type": "object",
-                  "properties": {
-                    "company_name": {
-                      "type": "string"
-                    },
-                    "source_file_name": {
-                      "type": "string"
-                    },
-                    "ticker": {
-                      "type": "string"
-                    },
-                    "report_type": {
-                      "type": "string"
-                    }
-                  }
-                },
-                "statement_metadata": {
-                  "type": "object",
-                  "properties": {
-                    "currency": {
-                      "type": "string"
-                    },
-                    "unit": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "runAfter": {
-            "Parse_Summary": [
-              "SUCCEEDED"
-            ]
-          }
         }
       },
       "outputs": {}

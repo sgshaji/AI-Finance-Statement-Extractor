@@ -1,0 +1,18 @@
+# Name: companyName
+# companyName
+<<<<<<< 
+# Name: companyName
+kind: Variable
+name: companyName
+scope: Conversation
+isExternalInitializationAllowed: false
+isOutputToExternalCallers: true
+initializationTimeoutInMilliseconds: 0
+=======
+# Name: companyName
+kind: Variable
+name: companyName
+scope: Conversation
+isExternalInitializationAllowed: true
+isOutputToExternalCallers: true
+initializationTimeoutInMilliseconds: 0>>>>>>> 
