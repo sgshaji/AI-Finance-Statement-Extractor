@@ -226,20 +226,23 @@ class TestStatementReviewCard:
         stmt = _make_test_statement(num_rows=6)
         conf = _make_test_confidence("medium", [1, 3])
         card = build_statement_review_card("balance_sheet", stmt, conf, {}, 1, 3)
-        # Collect all Input.Text ids and TextBlock texts to determine row order
-        body = card["body"]
+        # All rows are inside a single Table element as TableRows.
+        # The first TableRow is the header; data rows follow in order.
+        tables = _collect_elements(card, "Table")
+        assert len(tables) == 1, "Expected exactly one Table element"
+        data_rows = tables[0]["rows"][1:]  # skip header row
         row_order = []
-        for element in body:
-            # Editable rows are Containers with Input.Text ids like row_N_label
-            inputs = _collect_elements(element, "Input.Text")
+        for tr in data_rows:
+            # Editable rows have Input.Text with id row_N_label
+            inputs = _collect_elements(tr, "Input.Text")
             for inp in inputs:
                 m = __import__("re").match(r"row_(\d+)_label", inp.get("id", ""))
                 if m:
                     row_order.append(int(m.group(1)))
                     break
-            # Read-only rows are ColumnSets with TextBlock text matching "Item N"
-            if not inputs:
-                texts = _collect_texts(element)
+            else:
+                # Read-only rows have TextBlock text matching "Item N"
+                texts = _collect_texts(tr)
                 for t in texts:
                     if t.startswith("Item "):
                         try:

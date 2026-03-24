@@ -44,10 +44,31 @@ def build_navigator_card(
 ) -> dict:
     """Build the entry-point Navigator card showing all 3 statements."""
 
-    columns = []
+    # Build summary table rows
+    table_rows = [{
+        "type": "TableRow",
+        "style": "accent",
+        "cells": [
+            {"type": "TableCell", "items": [
+                {"type": "TextBlock", "text": "Statement", "weight": "Bolder", "size": "Small"},
+            ]},
+            {"type": "TableCell", "items": [
+                {"type": "TextBlock", "text": "Confidence", "weight": "Bolder", "size": "Small"},
+            ]},
+            {"type": "TableCell", "items": [
+                {"type": "TextBlock", "text": "Rows", "weight": "Bolder", "size": "Small",
+                 "horizontalAlignment": "Right"},
+            ]},
+        ],
+    }]
+
+    summary_map = {s["statement"]: s.get("rows", 0) for s in summary}
+
     for stmt_key in ("balance_sheet", "income_statement", "cash_flow"):
         display_name = STATEMENT_DISPLAY_NAMES[stmt_key]
         conf_entry = confidence.get(stmt_key)
+        row_count = summary_map.get(stmt_key, 0)
+
         if conf_entry is None:
             level_text = "\u2014 Not found"
             color = "Default"
@@ -64,21 +85,35 @@ def build_navigator_card(
                 level_text = f"\u26a0 Low ({len(flagged)} issues)"
                 color = "Attention"
 
-        col = {
-            "type": "Column",
-            "width": "stretch",
-            "items": [
-                {"type": "TextBlock", "text": f"\u25cf {display_name}", "weight": "Bolder"},
-                {"type": "TextBlock", "text": level_text, "color": color},
+        table_rows.append({
+            "type": "TableRow",
+            "cells": [
+                {"type": "TableCell", "items": [
+                    {"type": "TextBlock", "text": display_name, "weight": "Bolder"},
+                ]},
+                {"type": "TableCell", "items": [
+                    {"type": "TextBlock", "text": level_text, "color": color},
+                ]},
+                {"type": "TableCell", "items": [
+                    {"type": "TextBlock", "text": str(row_count),
+                     "horizontalAlignment": "Right"},
+                ]},
             ],
-        }
-        columns.append(col)
+        })
 
     body = [
         {"type": "TextBlock", "text": "Extraction Complete", "size": "Large", "weight": "Bolder"},
         {"type": "TextBlock", "text": f"{company_name}", "size": "Medium", "isSubtle": True},
-        {"type": "TextBlock", "text": f"Currency: {currency} | Unit: {unit}", "isSubtle": True},
-        {"type": "ColumnSet", "columns": columns},
+        {"type": "TextBlock", "text": f"Currency: {currency}  \u2502  Unit: {unit}",
+         "isSubtle": True, "spacing": "Small"},
+        {
+            "type": "Table",
+            "gridStyle": "accent",
+            "firstRowAsHeader": True,
+            "showGridLines": True,
+            "columns": [{"width": 2}, {"width": 2}, {"width": 1}],
+            "rows": table_rows,
+        },
     ]
 
     actions = [
@@ -125,7 +160,7 @@ def _get_row_value(row: dict, field: str, corrections: dict) -> str:
     row_key = f"row_{row['row_index']}"
     corr = corrections.get(row_key, {})
     if field == "label":
-        return corr.get("label", row.get("label_raw", ""))
+        return corr.get("label", row.get("label_normalized") or row.get("label_raw", ""))
     elif field == "section":
         return corr.get("section", row.get("section", "other"))
     elif field == "row_type":
@@ -141,113 +176,116 @@ def _get_row_value(row: dict, field: str, corrections: dict) -> str:
     return ""
 
 
-def _build_editable_row(row: dict, columns: list, corrections: dict, flag_text: str | None) -> dict:
-    """Build an editable container for a single row."""
-    idx = row["row_index"]
-    items: list[dict[str, Any]] = []
+# ─── Table-based row builders ────────────────────────────────────────────────
 
-    if flag_text:
-        items.append({
-            "type": "TextBlock",
-            "text": f"Row {idx}: {flag_text}",
-            "weight": "Bolder",
-            "size": "Small",
-            "color": "Warning",
-        })
 
-    # Label input
-    items.append({"type": "TextBlock", "text": "Label", "size": "Small", "isSubtle": True})
-    items.append({
-        "type": "Input.Text",
-        "id": f"row_{idx}_label",
-        "value": _get_row_value(row, "label", corrections),
-        "placeholder": "Enter label",
-    })
-
-    # Value columns
-    val_columns = []
+def _build_table_header_row(columns: list) -> dict:
+    """Build the header row for the financial data table."""
+    cells = [
+        {"type": "TableCell", "items": [
+            {"type": "TextBlock", "text": "Line Item", "weight": "Bolder", "size": "Small"},
+        ]},
+    ]
     for col in columns:
-        ci = col["column_index"]
-        val_columns.append({
-            "type": "Column",
-            "width": "stretch",
-            "items": [
-                {"type": "TextBlock", "text": col["label"], "size": "Small", "isSubtle": True},
-                {
-                    "type": "Input.Text",
-                    "id": f"row_{idx}_val_{ci}",
-                    "value": _get_row_value(row, f"val_{ci}", corrections),
-                },
-            ],
-        })
-    items.append({"type": "ColumnSet", "columns": val_columns})
-
-    # Section and Type dropdowns
-    items.append({
-        "type": "ColumnSet",
-        "columns": [
-            {
-                "type": "Column",
-                "width": "stretch",
-                "items": [
-                    {"type": "TextBlock", "text": "Section", "size": "Small", "isSubtle": True},
-                    {
-                        "type": "Input.ChoiceSet",
-                        "id": f"row_{idx}_section",
-                        "value": _get_row_value(row, "section", corrections),
-                        "style": "compact",
-                        "choices": SECTION_CHOICES,
-                    },
-                ],
-            },
-            {
-                "type": "Column",
-                "width": "stretch",
-                "items": [
-                    {"type": "TextBlock", "text": "Type", "size": "Small", "isSubtle": True},
-                    {
-                        "type": "Input.ChoiceSet",
-                        "id": f"row_{idx}_row_type",
-                        "value": _get_row_value(row, "row_type", corrections),
-                        "style": "compact",
-                        "choices": ROW_TYPE_CHOICES,
-                    },
-                ],
-            },
-        ],
-    })
-
-    return {"type": "Container", "separator": True, "items": items}
+        cells.append({"type": "TableCell", "items": [
+            {"type": "TextBlock", "text": col["label"], "weight": "Bolder",
+             "size": "Small", "horizontalAlignment": "Right"},
+        ]})
+    return {"type": "TableRow", "style": "accent", "cells": cells}
 
 
-def _build_inline_readonly_row(row: dict, columns: list) -> dict:
-    """Build a compact read-only row preserving positional context.
-
-    Section headers, subtotals, and totals are rendered bold so the
-    financial statement structure remains visible.
-    """
+def _build_readonly_table_row(row: dict, columns: list) -> dict:
+    """Build a read-only table row with proper visual hierarchy."""
     row_type = row.get("row_type", "line_item")
     is_emphasis = row_type in ("section_header", "subtotal", "total")
     weight = "Bolder" if is_emphasis else "Default"
 
-    label_text = row.get("label_raw", "") or ""
-    cols = [
-        {
-            "type": "Column",
-            "width": "stretch",
-            "items": [{"type": "TextBlock", "text": label_text, "weight": weight}],
-        }
+    label = row.get("label_normalized") or row.get("label_raw", "") or ""
+
+    cells = [
+        {"type": "TableCell", "items": [
+            {"type": "TextBlock", "text": label, "weight": weight, "wrap": True},
+        ]},
     ]
     for col in columns:
         ci = col["column_index"]
         values = row.get("values", [])
         raw = values[ci].get("raw", "") if ci < len(values) else ""
-        cols.append({
-            "type": "Column",
-            "width": "auto",
-            "items": [{"type": "TextBlock", "text": raw or "", "weight": weight}],
+        cells.append({"type": "TableCell", "items": [
+            {"type": "TextBlock", "text": raw or "\u2014", "weight": weight,
+             "horizontalAlignment": "Right"},
+        ]})
+
+    table_row: dict[str, Any] = {"type": "TableRow", "cells": cells}
+    if row_type in ("subtotal", "total"):
+        table_row["style"] = "accent"
+    return table_row
+
+
+def _build_editable_table_row(
+    row: dict, columns: list, corrections: dict, flag_text: str | None,
+) -> dict:
+    """Build an editable table row with inline input fields.
+
+    The label cell contains: flag badge, label input, and section/type dropdowns.
+    Value cells contain text inputs aligned with the table columns.
+    """
+    idx = row["row_index"]
+
+    # ── Label cell: flag + input + section/type ──
+    label_items: list[dict[str, Any]] = []
+    if flag_text:
+        label_items.append({
+            "type": "TextBlock", "text": f"\u26a0 {flag_text}",
+            "size": "Small", "color": "Warning", "wrap": True,
         })
-    return {"type": "ColumnSet", "columns": cols, "separator": row_type == "section_header"}
+    label_items.append({
+        "type": "Input.Text",
+        "id": f"row_{idx}_label",
+        "value": _get_row_value(row, "label", corrections),
+        "placeholder": "Label",
+    })
+    label_items.append({
+        "type": "ColumnSet",
+        "columns": [
+            {
+                "type": "Column", "width": "stretch",
+                "items": [{
+                    "type": "Input.ChoiceSet",
+                    "id": f"row_{idx}_section",
+                    "value": _get_row_value(row, "section", corrections),
+                    "style": "compact",
+                    "choices": SECTION_CHOICES,
+                }],
+            },
+            {
+                "type": "Column", "width": "stretch",
+                "items": [{
+                    "type": "Input.ChoiceSet",
+                    "id": f"row_{idx}_row_type",
+                    "value": _get_row_value(row, "row_type", corrections),
+                    "style": "compact",
+                    "choices": ROW_TYPE_CHOICES,
+                }],
+            },
+        ],
+    })
+
+    cells: list[dict[str, Any]] = [{"type": "TableCell", "items": label_items}]
+
+    # ── Value cells ──
+    for col in columns:
+        ci = col["column_index"]
+        cells.append({"type": "TableCell", "items": [{
+            "type": "Input.Text",
+            "id": f"row_{idx}_val_{ci}",
+            "value": _get_row_value(row, f"val_{ci}", corrections),
+        }]})
+
+    table_row: dict[str, Any] = {"type": "TableRow", "cells": cells}
+    if flag_text:
+        table_row["style"] = "warning"
+    return table_row
 
 
 def build_statement_review_card(
@@ -263,11 +301,14 @@ def build_statement_review_card(
 ) -> dict:
     """Build a review card for a single statement.
 
+    All rendering modes use a single Table element for consistent column
+    alignment, grid lines, and proper header row.
+
     Rendering modes:
       - Standard (editable=True, edit_all=False): all rows in original order,
-        flagged rows editable with warning styling, clean rows compact read-only.
-      - Edit All (edit_all=True): paginated, ALL rows editable.
-      - Read-only (editable=False): all rows as compact read-only text.
+        flagged rows as editable table rows, clean rows as read-only table rows.
+      - Edit All (edit_all=True): paginated, ALL rows as editable table rows.
+      - Read-only (editable=False): all rows as read-only table rows.
     """
 
     display_name = STATEMENT_DISPLAY_NAMES.get(statement_type, statement_type)
@@ -302,7 +343,7 @@ def build_statement_review_card(
                     "items": [
                         {
                             "type": "TextBlock",
-                            "text": f"{page_text} | {len(rows)} rows | {len(flagged_indices)} flagged",
+                            "text": f"{page_text}  \u2502  {len(rows)} rows  \u2502  {len(flagged_indices)} flagged",
                         }
                     ],
                 },
@@ -317,6 +358,10 @@ def build_statement_review_card(
         return _wrap_card(body, actions)
 
     total_pages = max(1, -(-len(rows) // EDIT_ALL_PAGE_SIZE))  # ceil division
+
+    # ── Build the data table ──
+    col_defs = [{"width": 3}] + [{"width": 1} for _ in columns]
+    table_rows = [_build_table_header_row(columns)]
 
     if editable and edit_all:
         # ── Edit All mode: paginated, every row editable ──
@@ -334,21 +379,34 @@ def build_statement_review_card(
             flag_text = None
             if row["row_index"] in flagged_indices:
                 flag_text = _flag_reason(row, validation) or "Review needed"
-            body.append(_build_editable_row(row, columns, corrections, flag_text))
+            table_rows.append(
+                _build_editable_table_row(row, columns, corrections, flag_text)
+            )
 
     elif editable:
-        # ── Standard mode: inline flagged (editable) + clean (read-only) ──
+        # ── Standard mode: flagged rows editable, clean rows read-only ──
         for row in rows:
             if row["row_index"] in flagged_indices:
                 reason = _flag_reason(row, validation) or "Review needed"
-                body.append(_build_editable_row(row, columns, corrections, reason))
+                table_rows.append(
+                    _build_editable_table_row(row, columns, corrections, reason)
+                )
             else:
-                body.append(_build_inline_readonly_row(row, columns))
+                table_rows.append(_build_readonly_table_row(row, columns))
 
     else:
         # ── Read-only mode ──
         for row in rows:
-            body.append(_build_inline_readonly_row(row, columns))
+            table_rows.append(_build_readonly_table_row(row, columns))
+
+    body.append({
+        "type": "Table",
+        "gridStyle": "accent",
+        "firstRowAsHeader": True,
+        "showGridLines": True,
+        "columns": col_defs,
+        "rows": table_rows,
+    })
 
     actions = _build_navigation_actions(
         step_num, total_steps, editable,
