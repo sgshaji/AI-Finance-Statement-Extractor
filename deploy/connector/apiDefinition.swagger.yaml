@@ -5,7 +5,7 @@ info:
     Extracts financial statements from uploaded PDF reports with HITL review
     support.
   version: 4.0.0
-host: financial-statement-extractor.azurewebsites.net
+host: fin-statement-extractor.azurewebsites.net
 basePath: /api
 schemes:
   - https
@@ -33,6 +33,45 @@ paths:
           type: string
           required: true
           description: Original file name of the uploaded PDF
+      responses:
+        '202':
+          description: Extraction started
+          schema:
+            type: object
+            properties:
+              jobId:
+                type: string
+                description: The job ID to poll for results
+              status:
+                type: string
+                description: Job status (processing)
+  /extract-by-url:
+    post:
+      operationId: submitExtractionByUrl
+      summary: Submit a PDF URL for financial statement extraction
+      description: >-
+        Accepts a direct download URL for a PDF and starts extraction.
+        Use this for files that exceed the connector payload limit.
+        Returns a jobId to poll for results.
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            type: object
+            required:
+              - fileUrl
+              - fileName
+            properties:
+              fileUrl:
+                type: string
+                description: Direct download URL for the PDF file
+              fileName:
+                type: string
+                description: Original file name of the PDF
+              authToken:
+                type: string
+                description: Optional Bearer token for authenticated URLs (e.g. Teams attachment URLs)
       responses:
         '202':
           description: Extraction started
