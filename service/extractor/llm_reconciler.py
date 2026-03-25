@@ -47,6 +47,7 @@ import os
 import re
 from typing import Optional
 
+from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 from dotenv import load_dotenv
 from openai import AzureOpenAI
 
@@ -65,16 +66,28 @@ def _get_client() -> AzureOpenAI:
         endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT", "").rstrip("/")
         api_key  = os.environ.get("AZURE_OPENAI_KEY", "")
         api_ver  = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-02-01")
-        if not endpoint or not api_key:
+        if not endpoint:
             raise EnvironmentError(
-                "AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_KEY must be set in .env "
+                "AZURE_OPENAI_ENDPOINT must be set in .env "
                 "to use the LLM reconciler."
             )
-        _client = AzureOpenAI(
-            azure_endpoint=endpoint,
-            api_key=api_key,
-            api_version=api_ver,
-        )
+        if api_key:
+            _client = AzureOpenAI(
+                azure_endpoint=endpoint,
+                api_key=api_key,
+                api_version=api_ver,
+            )
+        else:
+            # Managed identity auth
+            token_provider = get_bearer_token_provider(
+                DefaultAzureCredential(),
+                "https://cognitiveservices.azure.com/.default",
+            )
+            _client = AzureOpenAI(
+                azure_endpoint=endpoint,
+                azure_ad_token_provider=token_provider,
+                api_version=api_ver,
+            )
     return _client
 
 

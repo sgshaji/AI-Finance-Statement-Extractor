@@ -17,12 +17,24 @@ import os
 import time
 
 import requests
+from azure.identity import DefaultAzureCredential
 from dotenv import load_dotenv
 
 load_dotenv()
 
 ENDPOINT: str = os.environ["AZURE_CU_ENDPOINT"]
-API_KEY: str = os.environ["AZURE_CU_API_KEY"]
+API_KEY: str = os.environ.get("AZURE_CU_API_KEY", "")
+
+# Use managed identity when no API key is configured
+_credential = None if API_KEY else DefaultAzureCredential()
+
+
+def _get_auth_headers() -> dict:
+    """Return auth headers — API key if available, else managed identity token."""
+    if API_KEY:
+        return {"Ocp-Apim-Subscription-Key": API_KEY}
+    token = _credential.get_token("https://cognitiveservices.azure.com/.default")
+    return {"Authorization": f"Bearer {token.token}"}
 
 _POLL_INTERVAL_SECONDS = 3
 _MAX_POLL_ATTEMPTS = 60
@@ -39,10 +51,7 @@ def submit_document(file_path: str) -> tuple[str | None, dict | None]:
     with open(file_path, "rb") as f:
         data = f.read()
 
-    headers = {
-        "Ocp-Apim-Subscription-Key": API_KEY,
-        "Content-Type": "application/pdf",
-    }
+    headers = {**_get_auth_headers(), "Content-Type": "application/pdf"}
 
     response = requests.post(ENDPOINT, headers=headers, data=data, timeout=60)
 
@@ -70,7 +79,7 @@ def poll_result(operation_location: str) -> dict:
     Returns the full result dict.
     Raises RuntimeError on failure, TimeoutError if max attempts exceeded.
     """
-    headers = {"Ocp-Apim-Subscription-Key": API_KEY}
+    headers = _get_auth_headers()
 
     for attempt in range(1, _MAX_POLL_ATTEMPTS + 1):
         response = requests.get(operation_location, headers=headers, timeout=30)

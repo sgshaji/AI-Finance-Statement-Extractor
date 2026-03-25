@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Optional
 
 import requests
+from azure.identity import DefaultAzureCredential
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -33,6 +34,18 @@ load_dotenv()
 _API_VERSION = "2025-05-01-preview"
 _POLL_INTERVAL = 3
 _POLL_TIMEOUT = 300  # 5 minutes max
+
+# Use managed identity when no API key is configured
+_API_KEY = os.environ.get("AZURE_CU_API_KEY", "")
+_credential = None if _API_KEY else DefaultAzureCredential()
+
+
+def _get_auth_headers() -> dict:
+    """Return auth headers — API key if available, else managed identity token."""
+    if _API_KEY:
+        return {"Ocp-Apim-Subscription-Key": _API_KEY}
+    token = _credential.get_token("https://cognitiveservices.azure.com/.default")
+    return {"Authorization": f"Bearer {token.token}"}
 
 
 def _get_base_url() -> str:
@@ -45,10 +58,7 @@ def _get_base_url() -> str:
 
 
 def _get_headers(content_type: str = "application/json") -> dict:
-    return {
-        "Ocp-Apim-Subscription-Key": os.environ["AZURE_CU_API_KEY"],
-        "Content-Type": content_type,
-    }
+    return {**_get_auth_headers(), "Content-Type": content_type}
 
 
 # ---------------------------------------------------------------------------
@@ -169,7 +179,7 @@ def analyze_document(
 
 def _poll(operation_location: str) -> dict:
     """Poll an async operation until it completes."""
-    headers = {"Ocp-Apim-Subscription-Key": os.environ["AZURE_CU_API_KEY"]}
+    headers = _get_auth_headers()
     start = time.time()
     attempt = 0
 
