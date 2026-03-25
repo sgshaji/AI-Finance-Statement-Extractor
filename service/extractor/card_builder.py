@@ -62,7 +62,7 @@ def build_navigator_card(
         ],
     }]
 
-    summary_map = {s["statement"]: s.get("rows", 0) for s in summary}
+    summary_map = {s.get("statement_type", s.get("statement", "")): s.get("row_count", s.get("rows", 0)) for s in summary}
 
     for stmt_key in ("balance_sheet", "income_statement", "cash_flow"):
         display_name = STATEMENT_DISPLAY_NAMES[stmt_key]

@@ -29,7 +29,7 @@ import requests
 from azure.identity import DefaultAzureCredential
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=False)
 
 _API_VERSION = "2025-05-01-preview"
 _POLL_INTERVAL = 3

@@ -20,7 +20,7 @@ import requests
 from azure.identity import DefaultAzureCredential
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=False)
 
 ENDPOINT: str = os.environ["AZURE_CU_ENDPOINT"]
 API_KEY: str = os.environ.get("AZURE_CU_API_KEY", "")
