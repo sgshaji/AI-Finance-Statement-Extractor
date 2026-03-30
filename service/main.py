@@ -16,7 +16,7 @@ Output files written to ./output/
 
 The --llm flag enables the LLM post-processing pass (extractor/llm_reconciler.py)
 which fixes dropped labels, truncated labels, and noise rows using Azure OpenAI.
-Requires AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_KEY in .env.
+Requires AZURE_OPENAI_ENDPOINT in .env (auth via managed identity).
 """
 
 import argparse
@@ -151,7 +151,7 @@ if __name__ == "__main__":
         "--llm",
         action="store_true",
         help="Enable LLM post-processing to fix dropped/truncated labels "
-             "(requires AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_KEY in .env)",
+             "(requires AZURE_OPENAI_ENDPOINT in .env, auth via managed identity)",
     )
     args = parser.parse_args()
     run(args.pdf, use_llm=args.llm)

@@ -10,7 +10,9 @@ Responsibilities:
 
 Configuration (via .env):
   AZURE_CU_ENDPOINT  — Full analyze URL including api-version query param
-  AZURE_CU_API_KEY   — Subscription key for the Cognitive Services resource
+
+Authentication: Managed Identity (DefaultAzureCredential).
+  Requires Cognitive Services User role on the resource.
 """
 
 import os
@@ -23,16 +25,13 @@ from dotenv import load_dotenv
 load_dotenv(override=False)
 
 ENDPOINT: str = os.environ["AZURE_CU_ENDPOINT"]
-API_KEY: str = os.environ.get("AZURE_CU_API_KEY", "")
 
-# Use managed identity when no API key is configured
-_credential = None if API_KEY else DefaultAzureCredential()
+# Always use managed identity — no API keys
+_credential = DefaultAzureCredential()
 
 
 def _get_auth_headers() -> dict:
-    """Return auth headers — API key if available, else managed identity token."""
-    if API_KEY:
-        return {"Ocp-Apim-Subscription-Key": API_KEY}
+    """Return auth headers using managed identity token."""
     token = _credential.get_token("https://cognitiveservices.azure.com/.default")
     return {"Authorization": f"Bearer {token.token}"}
 
@@ -66,7 +65,7 @@ def submit_document(file_path: str) -> tuple[str | None, dict | None]:
         raise ValueError(
             f"Azure returned HTTP {response.status_code} with an empty body "
             "and no operation-location header. Check your AZURE_CU_ENDPOINT "
-            "and AZURE_CU_API_KEY in .env."
+            "and that the managed identity has Cognitive Services User role."
         )
 
     # Synchronous mode — result is in the response body directly

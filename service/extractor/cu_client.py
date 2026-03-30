@@ -16,7 +16,9 @@ Supports:
 Configuration (via .env):
   AZURE_CU_ENDPOINT  — Base endpoint (without path), e.g.
                         https://azure-content--resource.cognitiveservices.azure.com
-  AZURE_CU_API_KEY   — Subscription key
+
+Authentication: Managed Identity (DefaultAzureCredential).
+  Requires Cognitive Services User role on the resource.
 """
 
 import json
@@ -35,15 +37,12 @@ _API_VERSION = "2025-05-01-preview"
 _POLL_INTERVAL = 3
 _POLL_TIMEOUT = 300  # 5 minutes max
 
-# Use managed identity when no API key is configured
-_API_KEY = os.environ.get("AZURE_CU_API_KEY", "")
-_credential = None if _API_KEY else DefaultAzureCredential()
+# Always use managed identity — no API keys
+_credential = DefaultAzureCredential()
 
 
 def _get_auth_headers() -> dict:
-    """Return auth headers — API key if available, else managed identity token."""
-    if _API_KEY:
-        return {"Ocp-Apim-Subscription-Key": _API_KEY}
+    """Return auth headers using managed identity token."""
     token = _credential.get_token("https://cognitiveservices.azure.com/.default")
     return {"Authorization": f"Bearer {token.token}"}
 

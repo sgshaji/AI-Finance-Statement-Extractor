@@ -10,7 +10,7 @@ Usage:
     python scripts/setup_analyzers.py --delete  # delete both analyzers
 
 Prerequisites:
-    AZURE_CU_ENDPOINT and AZURE_CU_API_KEY must be set in .env
+    AZURE_CU_ENDPOINT must be set in .env (auth via managed identity)
 """
 
 import argparse

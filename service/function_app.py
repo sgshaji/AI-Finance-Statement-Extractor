@@ -236,6 +236,98 @@ def extract(req: func.HttpRequest) -> func.HttpResponse:
 
 
 # ---------------------------------------------------------------------------
+# POST /extract-by-url — URL-based extraction (bypasses CPS 5 MB connector limit)
+# ---------------------------------------------------------------------------
+
+@app.route(route="extract-by-url", methods=["POST"])
+def extract_by_url(req: func.HttpRequest) -> func.HttpResponse:
+    """
+    URL-based extraction endpoint. Accepts a download URL for the PDF instead
+    of the file bytes, bypassing the CPS 5 MB connector payload limit.
+
+    Body: { "fileUrl": "...", "fileName": "...", "authToken": "..." }
+    Returns: { "jobId": "...", "status": "processing" }
+    """
+    logging.info("Extract-by-url request received")
+
+    try:
+        body = req.get_json()
+    except Exception:
+        return func.HttpResponse(
+            json.dumps({"error": "Invalid JSON body"}),
+            status_code=400, mimetype="application/json",
+        )
+
+    file_url = body.get("fileUrl") or body.get("contentUrl")
+    file_name = body.get("fileName", "document.pdf")
+    auth_token = body.get("authToken", "")
+
+    if not file_url:
+        return func.HttpResponse(
+            json.dumps({"error": "Missing fileUrl"}),
+            status_code=400, mimetype="application/json",
+        )
+
+    # --- Parse optional query params ---
+    use_enrichment = req.params.get("enrichment", "true").lower() != "false"
+    requested_types = req.params.get("statements", "")
+    if requested_types:
+        requested_types = [s.strip() for s in requested_types.split(",")]
+    else:
+        requested_types = STATEMENT_TYPES
+
+    # --- Download PDF from URL ---
+    try:
+        import requests as http_requests
+        headers = {}
+        if auth_token:
+            headers["Authorization"] = f"Bearer {auth_token}"
+        download_resp = http_requests.get(file_url, headers=headers, timeout=120)
+        download_resp.raise_for_status()
+        pdf_bytes = download_resp.content
+        logging.info(f"Downloaded {file_name} from URL ({len(pdf_bytes)} bytes)")
+    except Exception as e:
+        return func.HttpResponse(
+            json.dumps({"error": f"Failed to download PDF from URL: {str(e)}"}),
+            status_code=400, mimetype="application/json",
+        )
+
+    # --- Save to temp file and start background job ---
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+            tmp.write(pdf_bytes)
+            tmp_path = tmp.name
+
+        job_id = str(uuid.uuid4())
+        _save_job(job_id, {"status": "processing"})
+
+        thread = threading.Thread(
+            target=_run_job,
+            args=(job_id, tmp_path, use_enrichment, requested_types, file_name),
+            daemon=True,
+        )
+        thread.start()
+        logging.info(f"Job {job_id} started for {file_name} (via URL)")
+
+        return func.HttpResponse(
+            json.dumps({"jobId": job_id, "status": "processing"}),
+            status_code=202,
+            headers={
+                "Location": f"/api/extract/status/{job_id}",
+                "Retry-After": "5",
+            },
+            mimetype="application/json",
+        )
+
+    except Exception as e:
+        logging.exception("Failed to start extraction job (via URL)")
+        return func.HttpResponse(
+            json.dumps({"error": f"Failed to start job: {str(e)}"}),
+            status_code=500, mimetype="application/json",
+        )
+
+
+# ---------------------------------------------------------------------------
 # GET /extract/status/{jobId} — poll for results
 # ---------------------------------------------------------------------------
 
@@ -626,6 +718,34 @@ def health(req: func.HttpRequest) -> func.HttpResponse:
             "schema_version": "1.2.0",
             "timestamp": datetime.utcnow().isoformat() + "Z",
             "active_jobs": 0,
+        }),
+        mimetype="application/json",
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /api/timeout-test?sleep=<seconds>
+# ---------------------------------------------------------------------------
+
+@app.route(route="timeout-test", methods=["GET"])
+def timeout_test(req: func.HttpRequest) -> func.HttpResponse:
+    """
+    Test endpoint to determine the exact connector timeout.
+    Call with ?sleep=30, ?sleep=60, ?sleep=120, etc.
+    Returns the actual elapsed time if the response gets through.
+    """
+    sleep_seconds = int(req.params.get("sleep", "10"))
+    start = time.time()
+    logging.info(f"timeout-test: sleeping for {sleep_seconds}s ...")
+    time.sleep(sleep_seconds)
+    elapsed = round(time.time() - start, 2)
+    logging.info(f"timeout-test: woke after {elapsed}s")
+    return func.HttpResponse(
+        json.dumps({
+            "status": "ok",
+            "requested_sleep": sleep_seconds,
+            "actual_elapsed": elapsed,
+            "timestamp": datetime.utcnow().isoformat() + "Z",
         }),
         mimetype="application/json",
     )

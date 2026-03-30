@@ -30,7 +30,8 @@ needed — the response is always a directly usable JSON structure.
 
 Configuration (via .env):
   AZURE_OPENAI_ENDPOINT    — Azure OpenAI resource URL (no trailing slash)
-  AZURE_OPENAI_KEY         — API key for the Azure OpenAI resource
+  Authentication: Managed Identity (DefaultAzureCredential)
+  Requires Cognitive Services OpenAI User role on the resource.
   AZURE_OPENAI_DEPLOYMENT  — Model deployment name (e.g. "gpt-4o-mini")
   AZURE_OPENAI_API_VERSION — API version (default: "2024-02-01")
 
@@ -64,30 +65,22 @@ def _get_client() -> AzureOpenAI:
     global _client
     if _client is None:
         endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT", "").rstrip("/")
-        api_key  = os.environ.get("AZURE_OPENAI_KEY", "")
         api_ver  = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-02-01")
         if not endpoint:
             raise EnvironmentError(
                 "AZURE_OPENAI_ENDPOINT must be set in .env "
                 "to use the LLM reconciler."
             )
-        if api_key:
-            _client = AzureOpenAI(
-                azure_endpoint=endpoint,
-                api_key=api_key,
-                api_version=api_ver,
-            )
-        else:
-            # Managed identity auth
-            token_provider = get_bearer_token_provider(
-                DefaultAzureCredential(),
-                "https://cognitiveservices.azure.com/.default",
-            )
-            _client = AzureOpenAI(
-                azure_endpoint=endpoint,
-                azure_ad_token_provider=token_provider,
-                api_version=api_ver,
-            )
+        # Always use managed identity — no API keys
+        token_provider = get_bearer_token_provider(
+            DefaultAzureCredential(),
+            "https://cognitiveservices.azure.com/.default",
+        )
+        _client = AzureOpenAI(
+            azure_endpoint=endpoint,
+            azure_ad_token_provider=token_provider,
+            api_version=api_ver,
+        )
     return _client
 
 
