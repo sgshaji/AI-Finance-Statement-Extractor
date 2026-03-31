@@ -109,10 +109,14 @@ def _build_response_payload(result: dict) -> dict:
 
 def _run_job(job_id: str, tmp_path: str, use_enrichment: bool,
              requested_types: list[str], file_name: str):
-    """Run extraction in a background thread. Stores result in blob storage."""
+    """Run extraction in a background thread. Stores result in blob storage and Dataverse."""
     try:
         result = _run_pipeline(tmp_path, use_enrichment, requested_types, file_name)
         payload = _build_response_payload(result)
+
+        # Write to Dataverse (before marking as completed)
+        _write_to_dataverse(job_id, result)
+
         _save_job(job_id, {"status": "completed", "result": payload})
         logging.info(f"Job {job_id} completed successfully")
     except Exception as e:
@@ -123,6 +127,32 @@ def _run_job(job_id: str, tmp_path: str, use_enrichment: bool,
             os.unlink(tmp_path)
         except Exception:
             pass
+
+
+def _write_to_dataverse(job_id: str, result: dict):
+    """Parse extraction result and write to Dataverse tables."""
+    from extractor.dataverse_parser import parse_job_row, parse_statement_row, parse_line_item_rows
+    from extractor.dataverse_client import write_to_dataverse
+
+    if not os.environ.get("DATAVERSE_URL"):
+        logging.info("DATAVERSE_URL not set, skipping Dataverse write")
+        return
+
+    job_row = parse_job_row(job_id, result)
+
+    statement_rows = []
+    line_items = []
+
+    for stype in STATEMENT_TYPES:
+        stmt = result.get(stype)
+        if not stmt or not isinstance(stmt, dict):
+            continue
+        statement_rows.append((stype, parse_statement_row(stype, stmt)))
+        for item in parse_line_item_rows(stype, stmt):
+            line_items.append((stype, item))
+
+    write_to_dataverse(job_id, job_row, statement_rows, line_items)
+    logging.info(f"Job {job_id}: wrote {len(statement_rows)} statements, {len(line_items)} line items to Dataverse")
 
 
 # ---------------------------------------------------------------------------
