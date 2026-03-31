@@ -61,16 +61,14 @@ def parse_job_row(job_id: str, result: dict) -> dict[str, Any]:
         if scores:
             avg_confidence = sum(scores) / len(scores)
 
-    summary_json = json.dumps(result.get("summary", []), ensure_ascii=False)
-
     row = {
-        "cree1_jobid": job_id[:850],
-        "cree1_companyname": (doc_meta.get("company_name", "") or "")[:4000],
+        "cree1_jobid": job_id,
+        "cree1_companyname": doc_meta.get("company_name", ""),
         "cree1_statementsfound": statements_found,
         "cree1_totallineitems": total_rows,
         "cree1_avgconfidence": avg_confidence,
-        "cree1_periods": ",".join(sorted(periods))[:4000],
-        "cree1_summaryjson": summary_json[:4000],
+        "cree1_periods": ",".join(sorted(periods)),
+        "cree1_summaryjson": json.dumps(result.get("summary", []), ensure_ascii=False),
         "cree1_status": STATUS_PENDING_REVIEW,
     }
 
@@ -103,19 +101,15 @@ def parse_statement_row(statement_type: str, stmt: dict) -> dict[str, Any]:
     meta = stmt.get("statement_metadata", {})
     page_range = meta.get("page_range", {})
 
-    # RawStatementJson can be very large — schema says maxLength 100 which is wrong,
-    # it should be a multiline text field. Truncate to be safe.
-    raw_json = json.dumps(stmt, ensure_ascii=False)
-
     return {
-        "cree1_statementtitle": (meta.get("statement_title", "") or "")[:850],
-        "cree1_statementname": (statement_type or "")[:100],
+        "cree1_statementtitle": meta.get("statement_title", ""),
+        "cree1_statementname": statement_type,
         "cree1_statementtype": STATEMENT_TYPE_MAP.get(statement_type, 833060000),
         "cree1_pagerangestart": page_range.get("start"),
         "cree1_pagerangeend": page_range.get("end"),
         "cree1_isconsolidated": meta.get("is_consolidated"),
         "cree1_isaudited": meta.get("is_audited"),
-        "cree1_rawstatementjson": raw_json[:100],  # Schema says maxLength 100 — needs to be increased in Dataverse
+        "cree1_rawstatementjson": json.dumps(stmt, ensure_ascii=False),
         "cree1_reviewcomplete": False,
     }
 
@@ -132,24 +126,24 @@ def parse_line_item_rows(statement_type: str, stmt: dict) -> list[dict[str, Any]
             col = col_lookup.get(col_idx, {})
 
             items.append({
-                "cree1_lineitemname": ((row.get("label_normalized") or row.get("label_raw", "")) or "")[:850],
+                "cree1_lineitemname": row.get("label_normalized") or row.get("label_raw", ""),
                 "cree1_rowindex": row.get("row_index"),
                 "cree1_rowtype": ROW_TYPE_MAP.get(row.get("row_type", ""), 833060001),
                 "cree1_indentlevel": row.get("indent_level", 0),
-                "cree1_sectionname": (row.get("section", "") or "")[:100],
-                "cree1_canonicalkey": (row.get("canonical_key", "") or "")[:100],
-                "cree1_canonicalgroup": (row.get("canonical_group", "") or "")[:100],
-                "cree1_labelraw": (row.get("label_raw", "") or "")[:100],
-                "cree1_period": (col.get("label", "") or "")[:100],
-                "cree1_periodtype": (col.get("period_type", "") or "")[:100],
+                "cree1_sectionname": row.get("section", ""),
+                "cree1_canonicalkey": row.get("canonical_key", ""),
+                "cree1_canonicalgroup": row.get("canonical_group", ""),
+                "cree1_labelraw": row.get("label_raw", ""),
+                "cree1_period": col.get("label", ""),
+                "cree1_periodtype": col.get("period_type", ""),
                 "cree1_periodenddate": col.get("end_date"),
                 "cree1_columnindex": col_idx,
-                "cree1_valueraw": ((val.get("raw") or "") or "")[:100],
+                "cree1_valueraw": val.get("raw"),
                 "cree1_valuenormalized": val.get("normalized"),
-                "cree1_valuekind": (val.get("value_kind", "") or "")[:100],
+                "cree1_valuekind": val.get("value_kind", ""),
                 "cree1_aiconfidence": val.get("confidence"),
                 "cree1_sourcepage": row.get("source_page"),
-                "cree1_signhint": (row.get("sign_hint") or "")[:100] if row.get("sign_hint") else None,
+                "cree1_signhint": row.get("sign_hint"),
                 "cree1_reviewstatus": REVIEW_STATUS_PENDING,
             })
 
