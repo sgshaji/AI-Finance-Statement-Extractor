@@ -147,8 +147,11 @@ def _write_to_dataverse(job_id: str, result: dict):
         stmt = result.get(stype)
         if not stmt or not isinstance(stmt, dict):
             continue
-        statement_rows.append((stype, parse_statement_row(stype, stmt)))
+        stmt_row = parse_statement_row(stype, stmt)
+        stmt_row["cree1_jobid"] = job_id
+        statement_rows.append((stype, stmt_row))
         for item in parse_line_item_rows(stype, stmt):
+            item["cree1_jobid"] = job_id
             line_items.append((stype, item))
 
     write_to_dataverse(job_id, job_row, statement_rows, line_items)

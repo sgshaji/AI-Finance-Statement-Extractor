@@ -102,6 +102,7 @@ def parse_statement_row(statement_type: str, stmt: dict) -> dict[str, Any]:
     page_range = meta.get("page_range", {})
 
     return {
+        "cree1_jobid": "",  # Set by _write_to_dataverse before sending
         "cree1_statementtitle": meta.get("statement_title", ""),
         "cree1_statementname": statement_type,
         "cree1_statementtype": STATEMENT_TYPE_MAP.get(statement_type, 833060000),
@@ -126,6 +127,7 @@ def parse_line_item_rows(statement_type: str, stmt: dict) -> list[dict[str, Any]
             col = col_lookup.get(col_idx, {})
 
             items.append({
+                "cree1_jobid": "",  # Set by _write_to_dataverse before sending
                 "cree1_lineitemname": row.get("label_normalized") or row.get("label_raw", ""),
                 "cree1_rowindex": row.get("row_index"),
                 "cree1_rowtype": ROW_TYPE_MAP.get(row.get("row_type", ""), 833060001),
