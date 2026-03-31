@@ -68,7 +68,7 @@ def parse_job_row(job_id: str, result: dict) -> dict[str, Any]:
         "cree1_totallineitems": total_rows,
         "cree1_avgconfidence": avg_confidence,
         "cree1_periods": ",".join(sorted(periods)),
-        "cree1_summaryjson": json.dumps(result.get("summary", []), ensure_ascii=False),
+        "cree1_sumamryjsonfull": json.dumps(result.get("summary", []), ensure_ascii=False),
         "cree1_status": STATUS_PENDING_REVIEW,
     }
 
@@ -109,7 +109,7 @@ def parse_statement_row(statement_type: str, stmt: dict) -> dict[str, Any]:
         "cree1_pagerangeend": page_range.get("end"),
         "cree1_isconsolidated": meta.get("is_consolidated"),
         "cree1_isaudited": meta.get("is_audited"),
-        "cree1_rawstatementjson": json.dumps(stmt, ensure_ascii=False),
+        "cree1_rawstatementjsonfull": json.dumps(stmt, ensure_ascii=False),
         "cree1_reviewcomplete": False,
     }
 
