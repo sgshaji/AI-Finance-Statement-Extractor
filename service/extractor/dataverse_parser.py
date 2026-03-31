@@ -24,6 +24,13 @@ ROW_TYPE_MAP = {
 
 REVIEW_STATUS_PENDING = 833060000
 
+# Picklist mappings for ExtractionJob choice fields
+LANGUAGE_MAP = {"en": 833060000, "zh": 833060001, "jp": 833060002}
+CURRENCY_MAP = {"USD": 833060000, "CNY": 833060001}
+CURRENCY_UNIT_MAP = {"ones": 833060000, "thousands": 833060001, "millions": 833060002}
+REPORT_TYPE_MAP = {"annual_report": 833060000, "quarterly_report": 833060001}
+ACCOUNTING_STANDARD_MAP = {"IFRS": 833060000, "Chinese_ASBE": 833060001}
+
 
 def parse_job_row(job_id: str, result: dict) -> dict[str, Any]:
     """Parse pipeline result into an ExtractionJob row."""
@@ -54,12 +61,9 @@ def parse_job_row(job_id: str, result: dict) -> dict[str, Any]:
         if scores:
             avg_confidence = sum(scores) / len(scores)
 
-    return {
+    row = {
         "cree1_jobid": job_id,
         "cree1_companyname": doc_meta.get("company_name", ""),
-        "cree1_reportlanguage": doc_meta.get("report_language", ""),
-        "cree1_currency": stmt_meta.get("currency", ""),
-        "cree1_currencyunit": stmt_meta.get("unit", ""),
         "cree1_statementsfound": statements_found,
         "cree1_totallineitems": total_rows,
         "cree1_avgconfidence": avg_confidence,
@@ -67,6 +71,29 @@ def parse_job_row(job_id: str, result: dict) -> dict[str, Any]:
         "cree1_summaryjson": json.dumps(result.get("summary", []), ensure_ascii=False),
         "cree1_status": STATUS_PENDING_REVIEW,
     }
+
+    # Only include choice fields if we have a valid mapping (avoid 400 errors)
+    lang = doc_meta.get("report_language", "")
+    if lang in LANGUAGE_MAP:
+        row["cree1_reportlanguage"] = LANGUAGE_MAP[lang]
+
+    currency = stmt_meta.get("currency", "")
+    if currency in CURRENCY_MAP:
+        row["cree1_currency"] = CURRENCY_MAP[currency]
+
+    unit = stmt_meta.get("unit", "")
+    if unit in CURRENCY_UNIT_MAP:
+        row["cree1_currencyunit"] = CURRENCY_UNIT_MAP[unit]
+
+    report_type = doc_meta.get("report_type", "")
+    if report_type in REPORT_TYPE_MAP:
+        row["cree1_reporttype"] = REPORT_TYPE_MAP[report_type]
+
+    acct_std = stmt_meta.get("accounting_standard", "")
+    if acct_std in ACCOUNTING_STANDARD_MAP:
+        row["cree1_accountingstandard"] = ACCOUNTING_STANDARD_MAP[acct_std]
+
+    return row
 
 
 def parse_statement_row(statement_type: str, stmt: dict) -> dict[str, Any]:
