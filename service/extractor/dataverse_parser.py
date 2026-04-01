@@ -6,8 +6,12 @@ All choice fields use integer values (PicklistType).
 import json
 from typing import Any
 
+from extractor.confidence_scorer import score_statement, flag_rows
+
 # Choice values
 STATUS_PENDING_REVIEW = 833060002
+REVIEW_STATUS_PENDING = 833060000
+REVIEW_STATUS_FLAGGED = 833060003
 
 STATEMENT_TYPE_MAP = {
     "balance_sheet": 833060001,
@@ -22,17 +26,19 @@ ROW_TYPE_MAP = {
     "total": 833060003,
 }
 
-REVIEW_STATUS_PENDING = 833060000
-
 # Picklist mappings for ExtractionJob choice fields
 LANGUAGE_MAP = {"en": 833060000, "zh": 833060001, "jp": 833060002}
-CURRENCY_MAP = {"USD": 833060000, "CNY": 833060001}
-CURRENCY_UNIT_MAP = {"ones": 833060000, "thousands": 833060001, "millions": 833060002}
-REPORT_TYPE_MAP = {"annual_report": 833060000, "quarterly_report": 833060001}
-ACCOUNTING_STANDARD_MAP = {"IFRS": 833060000, "Chinese_ASBE": 833060001}
+CURRENCY_MAP = {
+    "USD": 833060000, "CNY": 833060001, "JPY": 833060002,
+    "EUR": 833060003, "GBP": 833060004, "AUD": 833060005,
+    "CAD": 833060006, "HKD": 833060007, "SGD": 833060008,
+}
+CURRENCY_UNIT_MAP = {"ones": 833060000, "thousands": 833060001, "millions": 833060002, "billions": 833060003}
+REPORT_TYPE_MAP = {"annual_report": 833060000, "quarterly_report": 833060001, "10-K": 833060000, "10-Q": 833060001}
+ACCOUNTING_STANDARD_MAP = {"IFRS": 833060000, "Chinese_ASBE": 833060001, "US_GAAP": 833060002, "US-GAAP": 833060002, "GAAP": 833060002}
 
 
-def parse_job_row(job_id: str, result: dict) -> dict[str, Any]:
+def parse_job_row(job_id: str, result: dict, file_name: str = "") -> dict[str, Any]:
     """Parse pipeline result into an ExtractionJob row."""
     doc_meta = {}
     stmt_meta = {}
@@ -54,6 +60,7 @@ def parse_job_row(job_id: str, result: dict) -> dict[str, Any]:
     statements_found = sum(1 for s in ["balance_sheet", "income_statement", "cash_flow"]
                            if result.get(s) and isinstance(result[s], dict))
 
+    # Use statement-level confidence scores from confidence_scorer
     avg_confidence = None
     conf = result.get("confidence", {})
     if isinstance(conf, dict):
@@ -64,6 +71,7 @@ def parse_job_row(job_id: str, result: dict) -> dict[str, Any]:
     row = {
         "cree1_jobid": job_id,
         "cree1_companyname": doc_meta.get("company_name", ""),
+        "cree1_filename": file_name,
         "cree1_statementsfound": statements_found,
         "cree1_totallineitems": total_rows,
         "cree1_avgconfidence": avg_confidence,
@@ -115,21 +123,41 @@ def parse_statement_row(statement_type: str, stmt: dict) -> dict[str, Any]:
     }
 
 
-def parse_line_item_rows(statement_type: str, stmt: dict) -> list[dict[str, Any]]:
-    """Parse rows x columns into ExtractedLineItem rows (one per value per period)."""
+def parse_line_item_rows(statement_type: str, stmt: dict, confidence_result: dict | None = None) -> list[dict[str, Any]]:
+    """Parse rows x columns into ExtractedLineItem rows (one per value per period).
+
+    Parameters
+    ----------
+    confidence_result : dict | None
+        Output of confidence_scorer.score_statement(). Used to:
+        - Apply statement-level confidence as fallback when per-cell confidence is null
+        - Flag rows identified by flag_rows() (validation warnings, parse failures, etc.)
+    """
     columns = stmt.get("columns", [])
     col_lookup = {c["column_index"]: c for c in columns}
 
+    # Statement-level confidence fallback
+    stmt_confidence = confidence_result["score"] if confidence_result else None
+    flagged_row_indices = set(confidence_result.get("flagged_rows", [])) if confidence_result else set()
+
     items = []
     for row in stmt.get("rows", []):
+        row_idx = row.get("row_index")
+        is_flagged = row_idx in flagged_row_indices
+
         for val in row.get("values", []):
             col_idx = val.get("column_index", 0)
             col = col_lookup.get(col_idx, {})
 
+            # Use per-cell confidence if available, fall back to statement-level
+            cell_confidence = val.get("confidence")
+            if cell_confidence is None:
+                cell_confidence = stmt_confidence
+
             items.append({
                 "cree1_jobid": "",  # Set by _write_to_dataverse before sending
                 "cree1_lineitemname": row.get("label_normalized") or row.get("label_raw", ""),
-                "cree1_rowindex": row.get("row_index"),
+                "cree1_rowindex": row_idx,
                 "cree1_rowtype": ROW_TYPE_MAP.get(row.get("row_type", ""), 833060001),
                 "cree1_indentlevel": row.get("indent_level", 0),
                 "cree1_sectionname": row.get("section", ""),
@@ -143,10 +171,10 @@ def parse_line_item_rows(statement_type: str, stmt: dict) -> list[dict[str, Any]
                 "cree1_valueraw": val.get("raw"),
                 "cree1_valuenormalized": val.get("normalized"),
                 "cree1_valuekind": val.get("value_kind", ""),
-                "cree1_aiconfidence": val.get("confidence"),
+                "cree1_aiconfidence": cell_confidence,
                 "cree1_sourcepage": row.get("source_page"),
                 "cree1_signhint": row.get("sign_hint"),
-                "cree1_reviewstatus": REVIEW_STATUS_PENDING,
+                "cree1_reviewstatus": REVIEW_STATUS_FLAGGED if is_flagged else REVIEW_STATUS_PENDING,
             })
 
     return items

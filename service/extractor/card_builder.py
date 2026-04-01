@@ -35,12 +35,20 @@ EDIT_ALL_PAGE_SIZE = 20
 # ─── Navigator Card ─────────────────────────────────────────────────────────
 
 
+REVIEW_GRID_URL = (
+    "https://apps.powerapps.com/play/e/Default-269a92bb-9fea-4197-94ce-f1993452a98a"
+    "/a/33824507-997c-4c99-9c70-b498395ef0fe"
+    "?tenantId=269a92bb-9fea-4197-94ce-f1993452a98a"
+)
+
+
 def build_navigator_card(
     company_name: str,
     currency: str,
     unit: str,
     confidence: dict,
     summary: list,
+    job_id: str = "",
 ) -> dict:
     """Build the entry-point Navigator card showing all 3 statements."""
 
@@ -117,7 +125,7 @@ def build_navigator_card(
     ]
 
     actions = [
-        {"type": "Action.Submit", "title": "Start Review", "data": {"action": "start_review"}},
+        {"type": "Action.OpenUrl", "title": "Start Review", "url": f"{REVIEW_GRID_URL}&jobId={job_id}"},
         {"type": "Action.Submit", "title": "Skip Review & Generate Excel", "data": {"action": "skip_review"}},
     ]
 

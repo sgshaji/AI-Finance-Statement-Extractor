@@ -115,7 +115,7 @@ def _run_job(job_id: str, tmp_path: str, use_enrichment: bool,
         payload = _build_response_payload(result)
 
         # Write to Dataverse (before marking as completed)
-        _write_to_dataverse(job_id, result)
+        _write_to_dataverse(job_id, result, file_name=file_name)
 
         _save_job(job_id, {"status": "completed", "result": payload})
         logging.info(f"Job {job_id} completed successfully")
@@ -129,7 +129,7 @@ def _run_job(job_id: str, tmp_path: str, use_enrichment: bool,
             pass
 
 
-def _write_to_dataverse(job_id: str, result: dict):
+def _write_to_dataverse(job_id: str, result: dict, file_name: str = ""):
     """Parse extraction result and write to Dataverse tables."""
     from extractor.dataverse_parser import parse_job_row, parse_statement_row, parse_line_item_rows
     from extractor.dataverse_client import write_to_dataverse
@@ -138,7 +138,10 @@ def _write_to_dataverse(job_id: str, result: dict):
         logging.info("DATAVERSE_URL not set, skipping Dataverse write")
         return
 
-    job_row = parse_job_row(job_id, result)
+    job_row = parse_job_row(job_id, result, file_name=file_name)
+
+    # Pre-compute confidence results per statement for line item flagging
+    confidence_results = result.get("confidence", {})
 
     statement_rows = []
     line_items = []
@@ -150,7 +153,11 @@ def _write_to_dataverse(job_id: str, result: dict):
         stmt_row = parse_statement_row(stype, stmt)
         stmt_row["cree1_jobid"] = job_id
         statement_rows.append((stype, stmt_row))
-        for item in parse_line_item_rows(stype, stmt):
+
+        # Get confidence result for this statement (from pipeline confidence output)
+        conf_result = confidence_results.get(stype) if isinstance(confidence_results, dict) else None
+
+        for item in parse_line_item_rows(stype, stmt, confidence_result=conf_result):
             item["cree1_jobid"] = job_id
             line_items.append((stype, item))
 
@@ -591,7 +598,7 @@ def build_review_card(req: func.HttpRequest) -> func.HttpResponse:
         summary_str = result.get("summary", "[]")
         summary = json.loads(summary_str) if isinstance(summary_str, str) else summary_str
 
-        card = build_navigator_card(company_name, currency, unit, confidence, summary)
+        card = build_navigator_card(company_name, currency, unit, confidence, summary, job_id=job_id)
         return func.HttpResponse(
             json.dumps({"cardJson": json.dumps(card, ensure_ascii=False),
                          "sessionState": session_state_str}),
