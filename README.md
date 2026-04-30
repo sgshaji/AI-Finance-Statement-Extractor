@@ -77,25 +77,25 @@ If resources are not yet provisioned:
 
 ```bash
 # Create resource group
-az group create --name rg-finance-agent --location swedencentral
+az group create --name your-resource-group --location swedencentral
 
 # Create Document Intelligence
 az cognitiveservices account create \
-  --name fin-stmt-docai \
-  --resource-group rg-finance-agent \
+  --name your-docai-resource \
+  --resource-group your-resource-group \
   --location swedencentral \
   --kind FormRecognizer --sku S0
 
 # Create Azure OpenAI + deploy GPT-4.1
 az cognitiveservices account create \
-  --name fin-stmt-oai \
-  --resource-group rg-finance-agent \
+  --name your-aoai-resource \
+  --resource-group your-resource-group \
   --location swedencentral \
   --kind OpenAI --sku S0
 
 az cognitiveservices account deployment create \
-  --name fin-stmt-oai \
-  --resource-group rg-finance-agent \
+  --name your-aoai-resource \
+  --resource-group your-resource-group \
   --deployment-name gpt-4.1 \
   --model-name gpt-4.1 \
   --model-version "2025-04-14" \
@@ -104,14 +104,14 @@ az cognitiveservices account deployment create \
 
 # Create Function App
 az storage account create \
-  --name finstmtfuncstor \
-  --resource-group rg-finance-agent \
+  --name yourfuncstorage \
+  --resource-group your-resource-group \
   --location swedencentral --sku Standard_LRS
 
 az functionapp create \
-  --name fin-stmt-extractor-v2 \
-  --resource-group rg-finance-agent \
-  --storage-account finstmtfuncstor \
+  --name your-function-app \
+  --resource-group your-resource-group \
+  --storage-account yourfuncstorage \
   --consumption-plan-location swedencentral \
   --runtime python --runtime-version 3.11 \
   --functions-version 4 --os-type Linux
@@ -127,8 +127,8 @@ cp .env.example .env
 Edit `.env` with your resource endpoints:
 
 ```
-AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=https://fin-stmt-docai.cognitiveservices.azure.com/
-AZURE_OPENAI_ENDPOINT=https://fin-stmt-oai.openai.azure.com
+AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=https://your-docai-resource.cognitiveservices.azure.com/
+AZURE_OPENAI_ENDPOINT=https://your-aoai-resource.openai.azure.com
 AZURE_OPENAI_DEPLOYMENT=gpt-4.1
 AZURE_OPENAI_API_VERSION=2024-12-01-preview
 EXTRACTION_BACKEND=document_intelligence
@@ -160,13 +160,13 @@ pytest
 
 ```bash
 cd azure-functions
-func azure functionapp publish fin-stmt-extractor-v2 --python
+func azure functionapp publish your-function-app --python
 ```
 
 ### 9. Set Up Custom Connector (Copilot Studio)
 
 1. Import `docs/custom-connector-swagger.yml` into Power Platform custom connectors
-2. Set the API key (get it from `az functionapp keys list --name fin-stmt-extractor-v2 --resource-group rg-finance-agent`)
+2. Set the API key (get it from `az functionapp keys list --name your-function-app --resource-group your-resource-group`)
 3. Create a connection using the new connector
 4. Push the CPS agent YAML via the VS Code extension
 
@@ -248,11 +248,11 @@ All backends produce the same output: markdown with HTML `<table>` blocks, which
 
 | Resource | Name | Purpose |
 |---|---|---|
-| Resource Group | `rg-finance-agent` | Container |
-| Document Intelligence | `fin-stmt-docai` | PDF table extraction (prebuilt-layout) |
-| Azure OpenAI | `fin-stmt-oai` (GPT-4.1) | Classification, translation, enrichment |
-| Function App | `fin-stmt-extractor-v2` | API endpoints (Consumption plan, Linux) |
-| Storage Account | `finstmtfuncstor` | Blob storage for job results + Excel files |
+| Resource Group | `your-resource-group` | Container |
+| Document Intelligence | `your-docai-resource` | PDF table extraction (prebuilt-layout) |
+| Azure OpenAI | `your-aoai-resource` (GPT-4.1) | Classification, translation, enrichment |
+| Function App | `your-function-app` | API endpoints (Consumption plan, Linux) |
+| Storage Account | `yourfuncstorage` | Blob storage for job results + Excel files |
 
 Authentication: **Managed Identity only** (no API keys). The Function App's system-assigned identity has `Cognitive Services User` and `Cognitive Services OpenAI User` roles at the resource group scope.
 

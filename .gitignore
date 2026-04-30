@@ -37,7 +37,14 @@ Thumbs.db
 # Build artifacts / pip install noise
 =*
 
-# Sample outputs — keep PDFs, ignore generated files
+# Sample / customer-specific artifacts — never commit
 *.xlsx
-docs/samples/*.json
-docs/samples/*.txt
+*.pdf
+*.pptx
+*.docx
+docs/samples/
+_*
+_tmp_logos/
+
+# MCP widget test scaffolding (cloned from microsoft/mcp-interactiveUI-samples)
+mcp-widget-test/
