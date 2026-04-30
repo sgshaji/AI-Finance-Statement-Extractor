@@ -1,286 +1,256 @@
 # Finance Statement Agent
 
-AI-powered financial statement extraction platform built on Azure. Upload a PDF financial report, and the agent extracts Balance Sheet, Income Statement, and Cash Flow data into structured JSON and formatted Excel.
+Conversational AI for credit financial statement extraction. An analyst uploads a PDF financial report in Microsoft Teams; the agent returns a structured Excel workbook (Income Statement, Balance Sheet, Cash Flow, Ratios) ready for credit spreading.
 
-Supports multi-language documents (English, Chinese, French, Japanese) with automatic label translation.
+> **Status:** Reference implementation · **Last verified:** 2026-04-30
+
+---
+
+## Capabilities
+
+- Extracts **Income Statement, Balance Sheet, Cash Flow** and computed **Ratios** from PDF financial reports
+- **Multi-language**: English, Chinese, Japanese, French (auto-detected, label-reconciled to canonical schema)
+- **Conversational delivery** in Microsoft Teams via Copilot Studio
+- **Async pipeline** — submits in ~100 ms, returns a downloadable Excel link when ready
+- **Pluggable extraction backend** — Content Understanding (default), Document Intelligence, Textract, or local pdfplumber
+- **Managed Identity only** — no API keys for Azure service-to-service auth
+
+---
 
 ## Architecture
 
+![Architecture](docs/architecture.png)
+
+**Data flow:** Analyst → Teams → Copilot Studio → Custom Connector → Azure Functions (HTTP 202) → Poll until complete → Excel generated → Download link in chat
+
+| Layer | Component | Role |
+|---|---|---|
+| **Client** | Microsoft Teams (or Web / custom channel) | Chat surface; analyst uploads the PDF |
+| **Copilot Studio** | Finance Statement Agent (GPT-4.1) | Orchestrator; routes to topics |
+|  | `DocumentProcessor` topic | Submit PDF, run polling loop, render result |
+|  | Custom Connector (Swagger 2.0, 6 ops) | HTTPS bridge to Azure Functions |
+| **Azure** | Azure Functions (Python 3.11) | Async pipeline; returns HTTP 202 + `jobId` |
+|  | Content Understanding | OCR + table extraction |
+|  | Azure OpenAI (GPT-4.1) | Label reconciliation, classification, enrichment |
+|  | Azure Blob Storage | Job state (30-min TTL) + Excel artifacts |
+| **Output** | Excel workbook (IS / BS / CF / Ratios) | Returned as time-limited SAS URL in chat |
+
+### Async extraction & polling
+
+Power Platform custom connectors have a **default 30-second synchronous request timeout**. PDF extraction can take 30 s – 5 min depending on document size and backend, so the pipeline uses an **async job + polling** pattern — every connector call returns well under 30 s.
+
 ```
-User uploads PDF via Copilot Studio
-       |
-       v
-+------------------+     +-------------------------+     +---------------------+
-| Copilot Studio   | --> | Custom Connector        | --> | Azure Function      |
-| Agent (GPT-4.1)  |     | (REST API, API key auth)|     | (Python 3.11)       |
-|                  |     +-------------------------+     |                     |
-| - File detection |                                     | 5-Stage Pipeline:   |
-| - Polling loop   |                                     |  1. Analyze (DI)    |
-| - Summary card   |                                     |  2. Select           |
-| - Excel download |                                     |  3. Extract          |
-+------------------+                                     |  4. Enrich (GPT-4.1)|
-                                                         |  5. Validate         |
-                                                         +---------------------+
-                                                                  |
-                                                                  v
-                                                         Blob Storage (results)
-                                                                  |
-                                                                  v
-                                                         Excel Generation
+CPS Agent              Custom Connector          Azure Function
+  │  POST /extract  ──────►  forward  ──────►  start background job
+  │                                            persist {status:"processing"} to blob
+  │  ◄── 202 {jobId, status:"processing"}                       (~100 ms)
+  │
+  │  (poll every 30 s, bounded by max-attempts)
+  │  GET /extract/status/{jobId}  ──────────►  read job blob
+  │  ◄── 200 {status:"processing"}                              (<1 s)
+  │  ...
+  │  ◄── 200 {status:"completed", result:{...}}
+  ▼
+Render summary card + Excel SAS link
 ```
+
+**Backend contract** (`azure-functions/extractor/extract_endpoints.py`):
+- `POST /api/extract` and `/api/extract-by-url` — spawn a background thread, persist `{status:"processing"}`, return `202` with `jobId` and `Location: /api/extract/status/{jobId}` immediately
+- `GET /api/extract/status/{jobId}` — anonymous; returns `{status: processing | completed | failed, result?, error?}`
+
+**Copilot Studio side** (`copilot-studio-agent/topics/DocumentProcessorV2.mcs.yml`):
+- After upload, calls extract action and stores `jobId`
+- Status check loop (`ConditionGroup` + `GotoAction`) polls every 30 s
+- Bounded by a max-attempts guard; timeout surfaces a user-friendly error
+- On `completed`, hands off to summary card + Excel generation
+
+**Pipeline rules:**
+- `/extract` itself **must never block** — every connector call must return well under 30 s
+- All long work belongs in `run_job()` (the background thread target)
+- The status payload shape is a contract with the CPS polling loop — change it in both places
+
+---
+
+## Repository layout
+
+```
+finance-statement-agent/
+├── azure-functions/         # Python backend (HTTP 202 async pipeline)
+│   ├── function_app.py      # HTTP router
+│   └── extractor/           # 5-stage pipeline + clients (CU, DI, Textract, pdfplumber)
+├── copilot-studio-agent/    # Copilot Studio YAML (agent, topics, actions, workflows)
+├── code-app/                # Power Apps Code App — React HITL review grid (Dataverse)
+├── docs/
+│   ├── architecture.png             # Architecture diagram (this README)
+│   └── custom-connector-swagger.yml # Swagger 2.0 spec for the custom connector
+└── .github/workflows/       # CI/CD: deploy-function.yml
+```
+
+---
 
 ## Prerequisites
 
-| Tool | Version | Purpose |
-|---|---|---|
-| **Python** | 3.11+ | Azure Functions runtime |
-| **Node.js** | 18+ | Code App frontend build |
-| **Azure CLI** | 2.50+ | Azure resource management and auth |
-| **Azure Functions Core Tools** | 4.x | Local function development and deployment |
-| **VS Code** | Latest | Recommended IDE with Copilot Studio extension |
-| **Git** | 2.x | Version control |
+| Tool | Version |
+|---|---|
+| Python | 3.11+ |
+| Node.js | 18+ |
+| Azure CLI | 2.50+ |
+| Azure Functions Core Tools | 4.x |
+| Power Platform CLI (`pac`) | latest |
 
-### Azure Subscription
+**Azure**: subscription with rights to create Resource Group, Function App, Content Understanding (or Document Intelligence), Azure OpenAI with GPT-4.1, and Storage Account.
+**Power Platform**: Copilot Studio license, environment with Dataverse, custom connector creation rights.
 
-You need an Azure subscription with permissions to create:
-- Resource Group
-- Azure Function App (Consumption or Premium plan)
-- Azure Document Intelligence (S0 tier)
-- Azure OpenAI (with GPT-4.1 deployment)
-- Storage Account (for blob storage)
+---
 
-### Power Platform (for Copilot Studio agent)
+## Quick start
 
-- Copilot Studio license
-- Power Platform environment with Dataverse
-- Custom connector permissions
-
-## Installation
-
-### 1. Clone the Repository
+### 1. Clone and authenticate
 
 ```bash
 git clone <repo-url>
 cd finance-statement-agent
-```
-
-### 2. Azure Login
-
-```bash
 az login
-az account set --subscription "<your-subscription-id>"
+az account set --subscription "<subscription-id>"
 ```
 
-### 3. Set Up Azure Resources
+### 2. Provision Azure resources
 
-If resources are not yet provisioned:
+See the `az` commands in `docs/provisioning.md` (or your IaC of choice). Required:
+- Resource Group
+- Content Understanding **or** Document Intelligence resource (S0)
+- Azure OpenAI with a `gpt-4.1` deployment
+- Storage Account (for job state + Excel blobs)
+- Function App (Python 3.11, Linux, Consumption plan)
 
-```bash
-# Create resource group
-az group create --name your-resource-group --location swedencentral
+Grant the Function App's **system-assigned managed identity** these roles at the resource group scope:
+- `Cognitive Services User` — for Content Understanding / Document Intelligence
+- `Cognitive Services OpenAI User` — for Azure OpenAI
+- `Storage Blob Data Contributor` — for the storage account
 
-# Create Document Intelligence
-az cognitiveservices account create \
-  --name your-docai-resource \
-  --resource-group your-resource-group \
-  --location swedencentral \
-  --kind FormRecognizer --sku S0
-
-# Create Azure OpenAI + deploy GPT-4.1
-az cognitiveservices account create \
-  --name your-aoai-resource \
-  --resource-group your-resource-group \
-  --location swedencentral \
-  --kind OpenAI --sku S0
-
-az cognitiveservices account deployment create \
-  --name your-aoai-resource \
-  --resource-group your-resource-group \
-  --deployment-name gpt-4.1 \
-  --model-name gpt-4.1 \
-  --model-version "2025-04-14" \
-  --model-format OpenAI \
-  --sku-name Standard --sku-capacity 10
-
-# Create Function App
-az storage account create \
-  --name yourfuncstorage \
-  --resource-group your-resource-group \
-  --location swedencentral --sku Standard_LRS
-
-az functionapp create \
-  --name your-function-app \
-  --resource-group your-resource-group \
-  --storage-account yourfuncstorage \
-  --consumption-plan-location swedencentral \
-  --runtime python --runtime-version 3.11 \
-  --functions-version 4 --os-type Linux
-```
-
-### 4. Configure the Backend
+### 3. Configure the backend
 
 ```bash
 cd azure-functions
 cp .env.example .env
+# edit .env with your endpoints (no keys — MI handles auth)
 ```
 
-Edit `.env` with your resource endpoints:
-
-```
-AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=https://your-docai-resource.cognitiveservices.azure.com/
-AZURE_OPENAI_ENDPOINT=https://your-aoai-resource.openai.azure.com
-AZURE_OPENAI_DEPLOYMENT=gpt-4.1
-AZURE_OPENAI_API_VERSION=2024-12-01-preview
-EXTRACTION_BACKEND=document_intelligence
-```
-
-### 5. Install Dependencies
+### 4. Run locally
 
 ```bash
 cd azure-functions
 pip install -r requirements.txt
-```
-
-### 6. Run Locally
-
-```bash
-cd azure-functions
 func start
-# API available at http://localhost:7071/api/health
+# http://localhost:7071/api/health
 ```
 
-### 7. Run Tests
+### 5. Deploy the Function
 
 ```bash
 cd azure-functions
-pytest
+func azure functionapp publish <your-function-app> --python
 ```
 
-### 8. Deploy to Azure
+### 6. Set up the custom connector
+
+1. In Power Platform, **Custom connectors → New → Import OpenAPI file** → select `docs/custom-connector-swagger.yml`
+2. Update the Host to your Function App
+3. Authentication: **API key** (header `x-functions-key`) — retrieve via:
+   ```bash
+   az functionapp keys list --name <your-function-app> --resource-group <your-rg>
+   ```
+4. Create a connection using the new connector
+
+### 7. Deploy the Copilot Studio agent
 
 ```bash
-cd azure-functions
-func azure functionapp publish your-function-app --python
+cd copilot-studio-agent
+pac copilot push --environment <env-id>
 ```
 
-### 9. Set Up Custom Connector (Copilot Studio)
+### 8. Deploy the Code App (HITL review)
 
-1. Import `docs/custom-connector-swagger.yml` into Power Platform custom connectors
-2. Set the API key (get it from `az functionapp keys list --name your-function-app --resource-group your-resource-group`)
-3. Create a connection using the new connector
-4. Push the CPS agent YAML via the VS Code extension
-
-## Project Structure
-
-```
-finance-statement-agent/
-|
-+-- azure-functions/                  # Backend — Python Azure Function App
-|   +-- function_app.py               # Thin HTTP router (~240 lines)
-|   +-- extractor/
-|   |   +-- job_store.py              # Blob storage CRUD, response builder
-|   |   +-- extract_endpoints.py      # /extract, /extract-by-url, /status, /fx-rate
-|   |   +-- excel_endpoint.py         # /generate-excel (build, upload, SAS URL)
-|   |   +-- review_endpoints.py       # /build-review-card, /parse-card-submission
-|   |   +-- pipeline.py               # 5-stage orchestrator
-|   |   +-- stages/
-|   |   |   +-- contracts.py          # Shared types (PipelineOptions, AnalyzeResult)
-|   |   |   +-- analyze.py            # Stage 1: PDF -> markdown (backend toggle)
-|   |   |   +-- select.py             # Stage 2: Score & pick best candidate
-|   |   |   +-- extract.py            # Stage 3: Heading search + HTML table parsing
-|   |   |   +-- enrich.py             # Stage 4: LLM translation, canonical keys
-|   |   |   +-- validate.py           # Stage 5: Quality scoring (0.0-1.0)
-|   |   +-- di_client.py              # Azure Document Intelligence (Managed Identity)
-|   |   +-- di_adapter.py             # DI -> page_map + LLM classification
-|   |   +-- cu_client.py              # Content Understanding client (legacy)
-|   |   +-- textract_client.py        # AWS Textract client (alternative)
-|   |   +-- pdfplumber_client.py      # Local PDF extraction (no cloud)
-|   |   +-- html_table_parser.py      # HTML <table> -> rows/columns/cells
-|   |   +-- llm_reconciler.py         # LLM post-processing for label quality
-|   |   +-- schema_mapper.py          # Row enrichment + v1.2 JSON assembly
-|   |   +-- excel_formatter.py        # Professional Excel workbook builder
-|   |   +-- card_builder.py           # Adaptive Card JSON for CPS display
-|   |   +-- confidence_scorer.py      # Statement quality scoring
-|   +-- tests/                        # pytest unit + integration tests
-|   +-- requirements.txt
-|   +-- host.json
-|   +-- .env.example                  # Environment variable template
-|
-+-- copilot-studio-agent/             # CPS Agent — Copilot Studio YAML
-|   +-- agent.mcs.yml                 # Agent definition (instructions, model)
-|   +-- topics/
-|   |   +-- DocumentProcessorV2.mcs.yml  # File upload -> extract -> poll -> summary
-|   |   +-- HITLReview_wX5.mcs.yml       # Review navigator + Excel generation
-|   |   +-- GenerateExcel.mcs.yml        # Standalone Excel generation
-|   +-- actions/                      # Connector action wrappers (TaskDialog YAML)
-|   +-- variables/                    # Global variables (jobId, summary, etc.)
-|   +-- workflows/                    # Power Automate flows
-|
-+-- code-app/                         # Power Apps Code Component (React + TypeScript)
-|   +-- src/
-|   |   +-- pages/review.tsx          # HITL review grid page
-|   |   +-- services/dataverse-service.ts  # Dataverse CRUD operations
-|   |   +-- components/review/        # Table, tabs, summary bar, editable cells
-|
-+-- docs/
-|   +-- ARCHITECTURE-FINAL.md         # Detailed architecture documentation
-|   +-- DEMO-SCRIPT.md                # Demo walkthrough script
-|   +-- custom-connector-swagger.yml  # Swagger for the custom connector (v5.0.0)
-|
-+-- .github/workflows/
-    +-- deploy-function.yml            # CI/CD: deploy to Azure on push to main
+```bash
+cd code-app
+npm install
+npm run build
+pac code push
 ```
 
-## Extraction Backends
+---
 
-The pipeline supports 4 backends, toggled via the `EXTRACTION_BACKEND` environment variable:
+## Authentication model
 
-| Backend | Env Value | Service | Auth | Best For |
-|---|---|---|---|---|
-| **Document Intelligence** | `document_intelligence` | Azure DI prebuilt-layout | Managed Identity | Production (current default) |
-| **Content Understanding** | `cu` | Azure CU custom analyzers | Managed Identity | Legacy |
-| **Textract** | `textract` | AWS Textract | IAM credentials | AWS-native customers |
-| **pdfplumber** | `pdfplumber` | Local Python | None | Testing, no cloud cost |
-
-All backends produce the same output: markdown with HTML `<table>` blocks, which feeds into the shared Stages 2-5.
-
-## Azure Resources (Sweden Central)
-
-| Resource | Name | Purpose |
+| Hop | Mechanism | Notes |
 |---|---|---|
-| Resource Group | `your-resource-group` | Container |
-| Document Intelligence | `your-docai-resource` | PDF table extraction (prebuilt-layout) |
-| Azure OpenAI | `your-aoai-resource` (GPT-4.1) | Classification, translation, enrichment |
-| Function App | `your-function-app` | API endpoints (Consumption plan, Linux) |
-| Storage Account | `yourfuncstorage` | Blob storage for job results + Excel files |
+| User → Teams → Copilot Studio | M365 SSO | Managed by the channel |
+| Copilot Studio → Custom Connector | Connection (per user) | Power Platform connection record |
+| Custom Connector → Function | **Function key** (`x-functions-key`) | Rotate via `az functionapp keys` |
+| Function → Azure services | **Managed Identity** | No API keys; roles listed in step 2 |
+| Code App → Dataverse | Delegated user auth | Power Platform native |
 
-Authentication: **Managed Identity only** (no API keys). The Function App's system-assigned identity has `Cognitive Services User` and `Cognitive Services OpenAI User` roles at the resource group scope.
+There are **no service-to-service API keys** in `.env` or app settings. `.env` is gitignored.
 
-## API Endpoints
+---
 
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| `POST` | `/api/extract` | Function key | Submit PDF for extraction (returns jobId) |
-| `POST` | `/api/extract-by-url` | Function key | Submit PDF URL for extraction |
-| `GET` | `/api/extract/status/{jobId}` | Anonymous | Poll job status and results |
-| `POST` | `/api/generate-excel` | Function key | Generate Excel from extraction result |
-| `POST` | `/api/build-review-card` | Function key | Build Adaptive Card for CPS display |
-| `POST` | `/api/parse-card-submission` | Function key | Parse Adaptive Card submit payload |
-| `POST` | `/api/apply-corrections` | Function key | Apply analyst corrections |
-| `GET` | `/api/fx-rate` | Anonymous | Fetch FX conversion rates |
-| `GET` | `/api/health` | Function key | Health check |
-
-## Environment Variables
+## Configuration
 
 | Variable | Required | Description |
 |---|---|---|
-| `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT` | Yes (if DI backend) | DI resource endpoint URL |
-| `AZURE_OPENAI_ENDPOINT` | Yes | Azure OpenAI resource endpoint URL |
-| `AZURE_OPENAI_DEPLOYMENT` | Yes | Model deployment name (e.g., `gpt-4.1`) |
-| `AZURE_OPENAI_API_VERSION` | Yes | API version (e.g., `2024-12-01-preview`) |
-| `EXTRACTION_BACKEND` | No | Backend toggle: `document_intelligence` (default), `cu`, `textract`, `pdfplumber` |
-| `AZURE_CU_ENDPOINT` | Only if CU backend | Content Understanding endpoint URL |
-| `AWS_REGION` | Only if Textract backend | AWS region for Textract |
-| `AWS_S3_BUCKET` | Only if Textract backend | S3 bucket for temp PDF upload |
+| `EXTRACTION_BACKEND` | no | `content_understanding` (default) · `document_intelligence` · `textract` · `pdfplumber` |
+| `AZURE_CU_ENDPOINT` | yes (CU) | Content Understanding endpoint URL |
+| `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT` | yes (DI) | DI resource endpoint URL |
+| `AZURE_OPENAI_ENDPOINT` | yes | Azure OpenAI endpoint |
+| `AZURE_OPENAI_DEPLOYMENT` | yes | e.g. `gpt-4.1` |
+| `AZURE_OPENAI_API_VERSION` | yes | e.g. `2024-12-01-preview` |
+| `AWS_REGION` | yes (Textract) | AWS region |
+| `AWS_S3_BUCKET` | yes (Textract) | Bucket for temp PDF upload |
 
-All Azure services use Managed Identity authentication. No API key environment variables are needed.
+See `azure-functions/.env.example` for the full template.
+
+---
+
+## API reference
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| `POST` | `/api/extract` | function key | Submit PDF (multipart) — returns `202 {jobId}` |
+| `POST` | `/api/extract-by-url` | function key | Submit PDF by URL — returns `202 {jobId}` |
+| `GET` | `/api/extract/status/{jobId}` | anonymous | Poll job status (used by CPS loop) |
+| `POST` | `/api/generate-excel` | function key | Build Excel workbook from a completed result |
+| `POST` | `/api/build-review-card` | function key | Build Adaptive Card for CPS display |
+| `POST` | `/api/parse-card-submission` | function key | Parse Adaptive Card submit payload |
+| `GET` | `/api/fx-rate` | anonymous | Fetch FX conversion rates |
+| `GET` | `/api/health` | anonymous | Health check |
+
+Full Swagger 2.0 spec: `docs/custom-connector-swagger.yml`.
+
+---
+
+## Testing
+
+```bash
+# Backend
+cd azure-functions && pytest
+
+# Frontend
+cd code-app && npm test
+```
+
+End-to-end smoke test: upload a sample PDF in the deployed agent, confirm the polling loop completes and the SAS link returns a valid Excel workbook.
+
+---
+
+## Operational notes
+
+- **Job state TTL**: 30 minutes in Blob Storage. Polling beyond that returns `not_found`.
+- **SAS URLs**: time-limited; regenerate by re-running `/generate-excel` if expired.
+- **Upload size**: handled via the Copilot Studio `Question` node bound to `FilePrebuiltEntity` — direct `Activity.Attachments` access fails for files > 5 MB.
+- **Multi-language**: label reconciliation runs in Stage 4 (Azure OpenAI). Adding a language requires extending the canonical-key dictionary, not retraining.
+
+---
+
+## License & contributing
+
+Internal reference implementation. See `CONTRIBUTING.md` (TBD) for development workflow.
