@@ -84,6 +84,6 @@ sample_result = {
 }
 
 output = os.path.join(os.path.dirname(__file__), "..", "..", "Sample_Financial_Report.xlsx")
-build_professional_excel(sample_result, output, title="Macquarie Group \u2014 Financial Statement Review")
+build_professional_excel(sample_result, output, title="Sample Bank \u2014 Financial Statement Review")
 print(f"Generated: {output}")
 print(f"Size: {os.path.getsize(output):,} bytes")

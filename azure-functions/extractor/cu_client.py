@@ -38,11 +38,7 @@ _POLL_TIMEOUT = 300  # 5 minutes max
 
 
 def _get_auth_headers() -> dict:
-    """Return auth headers using API key or managed identity."""
-    api_key = os.environ.get("AZURE_CU_API_KEY")
-    if api_key:
-        return {"Ocp-Apim-Subscription-Key": api_key}
-    # Fallback to managed identity
+    """Return auth headers using managed identity (corp policy: no API keys)."""
     from azure.identity import DefaultAzureCredential
     token = DefaultAzureCredential().get_token("https://cognitiveservices.azure.com/.default")
     return {"Authorization": f"Bearer {token.token}"}

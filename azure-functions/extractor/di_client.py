@@ -9,7 +9,7 @@ Content Understanding produces — so all downstream pipeline stages
 
 Configuration (via .env):
   AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT — Resource endpoint, e.g.
-      https://fin-stmt-docai.cognitiveservices.azure.com/
+      https://your-docai-resource.cognitiveservices.azure.com/
 
 Authentication: Managed Identity (DefaultAzureCredential).
   Requires Cognitive Services User role on the resource.
