@@ -1,8 +1,21 @@
 # Finance Statement Agent
 
-Conversational AI for credit financial statement extraction. An analyst uploads a PDF financial report in Microsoft Teams; the agent returns a structured Excel workbook (Income Statement, Balance Sheet, Cash Flow, Ratios) ready for credit spreading.
+An analyst uploads a PDF financial report in Microsoft Teams; a Python extraction pipeline returns structured financial statements and an Excel workbook for analyst review and credit spreading. Copilot Studio handles the conversation, Azure Functions handles the asynchronous work, and a Power Apps interface supports human review.
 
-> **Status:** Reference implementation · **Last verified:** 2026-04-30
+> **Status:** Reference implementation. A related [finance-statement agent sample](https://github.com/pnp/copilot-pro-dev-samples/tree/main/samples/mcs-finance-statement-agent) was [merged into the PnP community repository](https://github.com/pnp/copilot-pro-dev-samples/pull/138) on 11 May 2026.
+
+## Delivery problem and engineering decisions
+
+| Constraint | Implementation |
+|---|---|
+| PDF processing can outlast a synchronous connector request | Submit a job, return HTTP 202, and poll for a terminal result |
+| Statement layouts and labels vary | Separate extraction, classification, reconciliation, and validation stages |
+| Analysts need inspectable outputs, not just a chat answer | Produce structured statements, an Excel workbook, and a review interface |
+| Channel integration and Azure service access have different trust boundaries | Use a function key at the connector boundary and managed identity for Azure service access |
+
+**Inspect the work:** [backend and tests](azure-functions/), [Copilot Studio agent](copilot-studio-agent/), [review interface](code-app/), and [connector contract](docs/custom-connector-swagger.yml).
+
+**Verification scope:** the merged sample establishes an accepted community contribution, not extraction accuracy, customer adoption, or production readiness. Reproduce the workflow and evaluate representative documents before relying on its outputs. Cloud deployment and end-to-end extraction were not rerun for this documentation update.
 
 ---
 
@@ -11,9 +24,9 @@ Conversational AI for credit financial statement extraction. An analyst uploads 
 - Extracts **Income Statement, Balance Sheet, Cash Flow** and computed **Ratios** from PDF financial reports
 - **Multi-language**: English, Chinese, Japanese, French (auto-detected, label-reconciled to canonical schema)
 - **Conversational delivery** in Microsoft Teams via Copilot Studio
-- **Async pipeline** — submits in ~100 ms, returns a downloadable Excel link when ready
+- **Async pipeline** — returns HTTP 202 with a job identifier, then provides a downloadable Excel link when processing completes
 - **Pluggable extraction backend** — Content Understanding (default), Document Intelligence, Textract, or local pdfplumber
-- **Managed Identity only** — no API keys for Azure service-to-service auth
+- **Managed identity for Azure service access** — the custom connector separately authenticates to the Function with a function key
 
 ---
 
@@ -108,15 +121,15 @@ finance-statement-agent/
 ### 1. Clone and authenticate
 
 ```bash
-git clone <repo-url>
-cd finance-statement-agent
+git clone https://github.com/sgshaji/AI-Finance-Statement-Extractor.git
+cd AI-Finance-Statement-Extractor
 az login
 az account set --subscription "<subscription-id>"
 ```
 
 ### 2. Provision Azure resources
 
-See the `az` commands in `docs/provisioning.md` (or your IaC of choice). Required:
+Provision the following resources in your subscription. A provisioning script is not included in this repository:
 - Resource Group
 - Content Understanding **or** Document Intelligence resource (S0)
 - Azure OpenAI with a `gpt-4.1` deployment
@@ -190,7 +203,7 @@ pac code push
 | Function → Azure services | **Managed Identity** | No API keys; roles listed in step 2 |
 | Code App → Dataverse | Delegated user auth | Power Platform native |
 
-There are **no service-to-service API keys** in `.env` or app settings. `.env` is gitignored.
+The Function's Azure service clients use managed identity. The custom connector's function key is a separate credential and must be protected and rotated. `.env` is gitignored.
 
 ---
 
@@ -230,12 +243,18 @@ Full Swagger 2.0 spec: `docs/custom-connector-swagger.yml`.
 
 ## Testing
 
-```bash
-# Backend
-cd azure-functions && pytest
+From the repository root, run the backend suite:
 
-# Frontend
-cd code-app && npm test
+```bash
+cd azure-functions && pytest
+```
+
+From the repository root, build and lint the frontend. No `npm test` script is defined:
+
+```bash
+cd code-app
+npm run build
+npm run lint
 ```
 
 End-to-end smoke test: upload a sample PDF in the deployed agent, confirm the polling loop completes and the SAS link returns a valid Excel workbook.
@@ -253,4 +272,6 @@ End-to-end smoke test: upload a sample PDF in the deployed agent, confirm the po
 
 ## License & contributing
 
-Internal reference implementation. See `CONTRIBUTING.md` (TBD) for development workflow.
+This repository currently has no licence file; public visibility alone does not grant permission to reuse or redistribute it. For the merged community sample, consult the licence and contribution guidance in the [upstream PnP repository](https://github.com/pnp/copilot-pro-dev-samples).
+
+For changes here, open an issue describing the proposed behaviour and verification before submitting a pull request.
